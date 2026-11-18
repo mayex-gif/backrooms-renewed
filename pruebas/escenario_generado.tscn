@@ -1,0 +1,12 @@
+[gd_scene load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://pruebas/escenario_generado.gd" id="1_generator"]
+[ext_resource type="PackedScene" path="res://jugador/jugador.tscn" id="2_player"]
+
+[node name="EscenarioGenerado" type="Node3D"]
+script = ExtResource("1_generator")
+
+[node name="Salas" type="Node3D" parent="."]
+
+[node name="Jugador" parent="." instance=ExtResource("2_player")]
+position = Vector3(2.5, 0.02, 2.5)

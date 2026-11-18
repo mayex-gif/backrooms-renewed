@@ -1,0 +1,125 @@
+[gd_scene load_steps=8 format=3]
+
+[sub_resource type="BoxMesh" id="BoxMesh_floor"]
+size = Vector3(5, 0.2, 5)
+
+[sub_resource type="BoxShape3D" id="BoxShape_floor"]
+size = Vector3(5, 0.2, 5)
+
+[sub_resource type="BoxMesh" id="BoxMesh_wall"]
+size = Vector3(1, 1, 1)
+
+[sub_resource type="BoxShape3D" id="BoxShape_sides_ns"]
+size = Vector3(1.25, 3.2, 0.2)
+
+[sub_resource type="BoxShape3D" id="BoxShape_fullwall_ns"]
+size = Vector3(5, 3.2, 0.2)
+
+[sub_resource type="BoxShape3D" id="BoxShape_sides_ew"]
+size = Vector3(0.2, 3.2, 5)
+
+[sub_resource type="BoxShape3D" id="BoxShape_header"]
+size = Vector3(2.5, 0.9, 0.2)
+
+[node name="SalaPrueba5x5" type="Node3D"]
+
+[node name="Piso" type="StaticBody3D" parent="."]
+position = Vector3(2.5, -0.1, 2.5)
+
+[node name="Malla" type="MeshInstance3D" parent="Piso"]
+mesh = SubResource("BoxMesh_floor")
+
+[node name="Colision" type="CollisionShape3D" parent="Piso"]
+shape = SubResource("BoxShape_floor")
+
+[node name="Paredes" type="Node3D" parent="."]
+
+[node name="NorteIzquierda" type="StaticBody3D" parent="Paredes"]
+position = Vector3(0.625, 1.6, 0)
+
+[node name="Malla" type="MeshInstance3D" parent="Paredes/NorteIzquierda"]
+scale = Vector3(1.25, 3.2, 0.2)
+mesh = SubResource("BoxMesh_wall")
+
+[node name="Colision" type="CollisionShape3D" parent="Paredes/NorteIzquierda"]
+shape = SubResource("BoxShape_sides_ns")
+
+[node name="NorteDerecha" type="StaticBody3D" parent="Paredes"]
+position = Vector3(4.375, 1.6, 0)
+
+[node name="Malla" type="MeshInstance3D" parent="Paredes/NorteDerecha"]
+scale = Vector3(1.25, 3.2, 0.2)
+mesh = SubResource("BoxMesh_wall")
+
+[node name="Colision" type="CollisionShape3D" parent="Paredes/NorteDerecha"]
+shape = SubResource("BoxShape_sides_ns")
+
+[node name="NorteDintel" type="StaticBody3D" parent="Paredes"]
+position = Vector3(2.5, 2.75, 0)
+
+[node name="Malla" type="MeshInstance3D" parent="Paredes/NorteDintel"]
+scale = Vector3(2.5, 0.9, 0.2)
+mesh = SubResource("BoxMesh_wall")
+
+[node name="Colision" type="CollisionShape3D" parent="Paredes/NorteDintel"]
+shape = SubResource("BoxShape_header")
+
+[node name="SurIzquierda" type="StaticBody3D" parent="Paredes"]
+position = Vector3(0.625, 1.6, 5)
+
+[node name="Malla" type="MeshInstance3D" parent="Paredes/SurIzquierda"]
+scale = Vector3(1.25, 3.2, 0.2)
+mesh = SubResource("BoxMesh_wall")
+
+[node name="Colision" type="CollisionShape3D" parent="Paredes/SurIzquierda"]
+shape = SubResource("BoxShape_sides_ns")
+
+[node name="SurDerecha" type="StaticBody3D" parent="Paredes"]
+position = Vector3(4.375, 1.6, 5)
+
+[node name="Malla" type="MeshInstance3D" parent="Paredes/SurDerecha"]
+scale = Vector3(1.25, 3.2, 0.2)
+mesh = SubResource("BoxMesh_wall")
+
+[node name="Colision" type="CollisionShape3D" parent="Paredes/SurDerecha"]
+shape = SubResource("BoxShape_sides_ns")
+
+[node name="SurDintel" type="StaticBody3D" parent="Paredes"]
+position = Vector3(2.5, 2.75, 5)
+
+[node name="Malla" type="MeshInstance3D" parent="Paredes/SurDintel"]
+scale = Vector3(2.5, 0.9, 0.2)
+mesh = SubResource("BoxMesh_wall")
+
+[node name="Colision" type="CollisionShape3D" parent="Paredes/SurDintel"]
+shape = SubResource("BoxShape_header")
+
+[node name="Este" type="StaticBody3D" parent="Paredes"]
+position = Vector3(5, 1.6, 2.5)
+
+[node name="Malla" type="MeshInstance3D" parent="Paredes/Este"]
+scale = Vector3(0.2, 3.2, 5)
+mesh = SubResource("BoxMesh_wall")
+
+[node name="Colision" type="CollisionShape3D" parent="Paredes/Este"]
+shape = SubResource("BoxShape_sides_ew")
+
+[node name="Sur" type="StaticBody3D" parent="Paredes"]
+position = Vector3(2.5, 1.6, 5)
+
+[node name="Malla" type="MeshInstance3D" parent="Paredes/Sur"]
+scale = Vector3(5, 3.2, 0.2)
+mesh = SubResource("BoxMesh_wall")
+
+[node name="Colision" type="CollisionShape3D" parent="Paredes/Sur"]
+shape = SubResource("BoxShape_fullwall_ns")
+
+[node name="Oeste" type="StaticBody3D" parent="Paredes"]
+position = Vector3(0, 1.6, 2.5)
+
+[node name="Malla" type="MeshInstance3D" parent="Paredes/Oeste"]
+scale = Vector3(0.2, 3.2, 5)
+mesh = SubResource("BoxMesh_wall")
+
+[node name="Colision" type="CollisionShape3D" parent="Paredes/Oeste"]
+shape = SubResource("BoxShape_sides_ew")

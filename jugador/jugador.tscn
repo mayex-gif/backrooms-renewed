@@ -9,6 +9,18 @@ height = 1.8
 [sub_resource type="Environment" id="Environment_player"]
 background_mode = 1
 background_color = Color(0.08, 0.08, 0.07, 1)
+ssao_enabled = true
+ssao_radius = 1.2
+ssao_intensity = 1.4
+ssil_enabled = true
+ssil_radius = 5.0
+ssil_intensity = 0.7
+sdfgi_enabled = true
+sdfgi_cascades = 3
+sdfgi_use_occlusion = true
+glow_enabled = true
+glow_intensity = 0.35
+glow_strength = 0.45
 
 [node name="Jugador" type="CharacterBody3D" groups=["jugador"]]
 script = ExtResource("1")

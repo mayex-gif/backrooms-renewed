@@ -11,9 +11,13 @@ config_version=5
 [application]
 
 config/name="Backrooms"
+run/main_scene="res://pruebas/menu_principal.tscn"
 config/features=PackedStringArray("4.7", "Forward Plus")
 config/icon="res://icon.svg"
-run/main_scene="res://pruebas/escenario_jugador.tscn"
+
+[autoload]
+
+PanelDesarrollo="*res://pruebas/panel_desarrollo.gd"
 
 [display]
 

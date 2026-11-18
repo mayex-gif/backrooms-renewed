@@ -2,25 +2,56 @@
 
 ## Origen
 
-La referencia es el commit `afb5cd2` ("Personaje creado y falta arreglar las animaciones") del repositorio anterior, rama `main`, en particular `jugador/jugador.gd` y `jugador/jugador.tscn`. Ese controlador usaba `CharacterBody3D`, movimiento relativo a la orientación, gravedad, cámara en primera persona, toggle de agachado, correr, head bobbing y pasos sincronizados con el bob.
+La referencia es el commit `afb5cd2` ("Personaje creado y falta arreglar las
+animaciones") del repositorio anterior, rama `main`, en particular
+`jugador/jugador.gd` y `jugador/jugador.tscn`. Ese controlador usaba
+`CharacterBody3D`, movimiento relativo a la orientación, gravedad, cámara en
+primera persona, agachado, carrera, head bobbing y pasos sincronizados con el
+bob.
 
 ## Qué se reutilizó y qué se dejó fuera
 
-Se conserva el enfoque probado de CharacterBody3D, cámara hija que rota en pitch, movimiento WASD relativo al jugador, mouse capturado con Escape, y alturas de colisión/cámara para agacharse. El movimiento fue recreado en un script pequeño, con velocidades moderadas y sin acceso a archivos del repo viejo.
+Se conserva el enfoque de `CharacterBody3D`, cámara hija que rota en pitch,
+movimiento WASD relativo al jugador, mouse capturado con Escape y cambios de
+altura de colisión para agacharse. El controlador se reconstruyó como un script
+pequeño. No se importaron modelos, animaciones ni sonidos: dependían de recursos
+externos que no existen en este proyecto. El head bobbing y los pasos quedan
+fuera hasta validar el movimiento básico.
 
-No se importaron modelos/animaciones: el commit los ligaba a un GLB y recursos `.res` que no existen en este proyecto; además el propio mensaje del commit señala que las animaciones requerían arreglo. Tampoco se portó el audio de pasos: usaba sonidos del proyecto anterior y dependía de la fase del head bob para marcar pisadas. El bobbing quedó fuera para evitar acoplar cámara, locomoción y sonido antes de validar el movimiento básico.
+## Controles
 
-## Prueba
+El jugador aparece en `pruebas/escenario_plano.tscn` o
+`pruebas/escenario_generado.tscn`, elegibles desde el menú principal.
 
-`pruebas/escenario_jugador.tscn` es el escenario mínimo con piso físico, luz y el jugador instanciado. Es la escena principal del proyecto. Los controles se registran al iniciar desde `jugador.gd`: WASD/flechas, Shift correr, C agacharse, mouse mirar, Escape liberar o capturar cursor; clic vuelve a capturarlo.
+- WASD o flechas: moverse.
+- Mouse: mirar.
+- Shift: caminar sigilosamente.
+- Ctrl: correr.
+- C: agacharse o levantarse.
+- Z: arrastrarse o levantarse. La cápsula baja a 0,65 m y la cámara queda cerca
+  del suelo.
+- F: alternar la linterna.
+- Escape: liberar o volver a capturar el cursor; un clic también lo captura.
+- F3: alternar no-clip solo en builds de desarrollo. WASD y mouse dirigen el
+  vuelo; E sube y Q baja. La gravedad y las colisiones se suspenden mientras
+  está activo.
+
+La altura de la cápsula al estar de pie es 1,8 m; antes de levantarse desde
+agachado o arrastrado, el controlador comprueba si hay espacio libre.
+
+## Estado de validación
+
+El usuario comprobó anteriormente WASD, agacharse con C, correr con Shift en
+esa sesión inicial y colisión con el piso. La distribución actual usa Shift
+para caminar sigilosamente y Ctrl para correr. Falta revisar en el juego las
+transiciones de postura, la linterna, los marcos de puerta y el no-clip.
 
 ## Diferencias y problemas conocidos del prototipo viejo
 
-- Velocidades del último commit: caminar 6, correr 10 y agachado 0,75. Eran valores elevados para el ritmo buscado acá; la versión nueva usa 4, 6 y 2 m/s como punto de partida ajustable.
-- El freno antiguo movía la velocidad hacia cero por `velocidad_actual` cada tick, por lo que el frenado variaba con la tasa de física. La versión nueva lo escala por `delta`.
-- Cambiar `shape.height` mientras se agacha no comprobaba si había techo encima. En esta versión también falta esa comprobación; antes de añadir techos al escenario se debería impedir ponerse de pie cuando la cápsula ampliada choque.
-- El jugador anterior componía animaciones y pasos con head bobbing; el commit reporta animaciones por arreglar y otras ramas posteriores resolvieron el zumbido de luces con variación aleatoria de pitch, atenuación y distancia. Se dejan esos sistemas fuera del primer prototipo aislado.
-
-## Siguiente validación
-
-Probar en Godot que la cápsula permanece apoyada al agacharse y ponerse de pie, que no atraviesa paredes y que la sensibilidad de mouse es cómoda. Luego agregar techo al escenario y resolver el bloqueo de postura antes de integrar el jugador con salas generadas.
+- Velocidades del último commit: caminar 6, correr 10 y agachado 0,75. Eran
+  altas para el ritmo buscado; la versión nueva usa velocidades más moderadas y
+  ajustables en el Inspector.
+- El freno antiguo variaba con la tasa de física. La versión nueva lo escala
+  por `delta`.
+- El jugador anterior componía animaciones y pasos con el head bobbing; el
+  commit reporta animaciones por arreglar. Se dejaron esos sistemas fuera.
