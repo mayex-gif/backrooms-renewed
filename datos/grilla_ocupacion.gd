@@ -1,36 +1,40 @@
 class_name GrillaOcupacion
 extends RefCounted
-## Registro de qué celdas del mundo están ocupadas y por qué sala.
-## Es el "mapa mental" del generador: no tiene nodos, solo un diccionario.
+## Registro de rectángulos ocupados en metros. Las salas están alineadas a ejes.
 
-# celda (Vector2i) -> id de la sala que la ocupa (int)
-var _celdas: Dictionary = {}
+var _rectangulos: Array[Dictionary] = []
 
 
-## true si NINGUNA de las celdas está ocupada.
-func esta_libre(celdas: Array[Vector2i]) -> bool:
-	for c in celdas:
-		if _celdas.has(c):
+## true si el rectángulo no se solapa con las salas registradas.
+func esta_libre(rectangulo: Rect2, tolerancia: float = 0.001) -> bool:
+	for entrada in _rectangulos:
+		var existente: Rect2 = entrada.rectangulo
+		var solapa_x := rectangulo.position.x < existente.end.x - tolerancia and rectangulo.end.x > existente.position.x + tolerancia
+		var solapa_z := rectangulo.position.y < existente.end.y - tolerancia and rectangulo.end.y > existente.position.y + tolerancia
+		if solapa_x and solapa_z:
 			return false
 	return true
 
 
-## Marca las celdas como ocupadas por la sala "id_sala".
-func ocupar(celdas: Array[Vector2i], id_sala: int) -> void:
-	for c in celdas:
-		_celdas[c] = id_sala
+## Registra el rectángulo con el id de sala indicado.
+func ocupar(rectangulo: Rect2, id_sala: int) -> void:
+	_rectangulos.append({"rectangulo": rectangulo, "id": id_sala})
 
 
-## Libera las celdas (por ejemplo, al descargar una sala lejana).
-func liberar(celdas: Array[Vector2i]) -> void:
-	for c in celdas:
-		_celdas.erase(c)
+## Libera un rectángulo (por ejemplo, al descargar una sala lejana).
+func liberar(rectangulo: Rect2) -> void:
+	for i in range(_rectangulos.size() - 1, -1, -1):
+		if _rectangulos[i].rectangulo == rectangulo:
+			_rectangulos.remove_at(i)
 
 
-## Id de la sala que ocupa la celda, o -1 si está libre.
-func id_en(celda: Vector2i) -> int:
-	return _celdas.get(celda, -1)
+## Id de la sala que contiene el punto, o -1 si está libre.
+func id_en(punto: Vector2) -> int:
+	for entrada in _rectangulos:
+		if entrada.rectangulo.has_point(punto):
+			return entrada.id
+	return -1
 
 
 func cantidad_ocupadas() -> int:
-	return _celdas.size()
+	return _rectangulos.size()

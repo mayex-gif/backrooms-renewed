@@ -5,7 +5,8 @@ func _init() -> void:
 	nombre = "SalaPrueba5x5"
 	escena = load("res://salas/sala_prueba.tscn")
 	peso = 100.0
-	huella = SalaDef.huella_rectangular(10, 10)
+	ancho_m = 5.0
+	largo_m = 5.0
 	var puerta := SocketDef.new()
 	puerta.posicion_local = Vector3(2.5, 0.0, 0.0)
 	puerta.direccion = Direcciones.Dir.NORTE

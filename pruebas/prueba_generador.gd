@@ -20,7 +20,7 @@ func _run() -> void:
 		_chequear(huella_primera == huella_segunda, "semilla %d repite distribución" % semilla)
 		_chequear(not primera.salas.is_empty(), "semilla %d genera salas" % semilla)
 		_chequear(primera.salas.size() <= MAX_SALAS, "semilla %d respeta máximo" % semilla)
-		_chequear(_celdas_sin_solape(primera.salas), "semilla %d no duplica celdas" % semilla)
+		_chequear(_rectangulos_sin_solape(primera.salas), "semilla %d no solapa rectángulos" % semilla)
 		if primera.salas.size() < MAX_SALAS:
 			_chequear(primera.pendientes == 0, "semilla %d termina al agotar conexiones" % semilla)
 		huellas[huella_primera] = true
@@ -37,13 +37,11 @@ func _huella(resultado: Dictionary) -> String:
 		filas.append("%s@%s/g%d" % [sala.nombre, ubicacion.origen, ubicacion.giros])
 	return " | ".join(filas)
 
-func _celdas_sin_solape(salas: Array) -> bool:
-	var vistas: Dictionary = {}
-	for sala in salas:
-		for celda in sala.celdas:
-			if vistas.has(celda):
+func _rectangulos_sin_solape(salas: Array) -> bool:
+	for i in salas.size():
+		for j in range(i + 1, salas.size()):
+			if salas[i].rectangulo.intersects(salas[j].rectangulo, false):
 				return false
-			vistas[celda] = true
 	return true
 
 func _chequear(condicion: bool, descripcion: String) -> void:

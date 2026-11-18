@@ -31,7 +31,8 @@ func _chequear(condicion: bool, texto: String) -> void:
 func _sala_de_prueba() -> SalaDef:
 	var s := SalaDef.new()
 	s.nombre = "Prueba5x5"
-	s.huella = SalaDef.huella_rectangular(10, 10)
+	s.ancho_m = 5.0
+	s.largo_m = 5.0
 	var sock := SocketDef.new()
 	sock.posicion_local = Vector3(2.5, 0.0, 0.0)  # centro del borde norte
 	sock.direccion = Direcciones.Dir.NORTE
@@ -62,21 +63,9 @@ func _prueba_union_de_salas() -> void:
 	var col := Colocacion.calcular(sala, 0, Vector3(5, 0, 2.5), Direcciones.Dir.ESTE, 2.5)
 	_chequear(col.giros == 3, "giros esperados = 3 (NORTE debe pasar a mirar OESTE)")
 	_chequear(col.origen.is_equal_approx(Vector3(5, 0, 5)), "origen esperado (5, 0, 5), salió " + str(col.origen))
-	_chequear(col.alineada, "el origen cae sobre la grilla")
-	_chequear(col.celdas.size() == 100, "ocupa 100 celdas")
+	_chequear(col.rectangulo.position.is_equal_approx(Vector2(5, 0)) and col.rectangulo.size.is_equal_approx(Vector2(5, 5)), "rectángulo rotado ocupa x 5..10, z 0..5")
 	_chequear(is_equal_approx(col.angulo_y, -1.5 * PI), "ángulo Y = -270° (-1.5 PI)")
 	# La sala B debe ocupar x 5..10 m, z 0..5 m => celdas x 10..19, z 0..9.
-	var min_x := 9999
-	var max_x := -9999
-	var min_z := 9999
-	var max_z := -9999
-	for c in col.celdas:
-		min_x = mini(min_x, c.x)
-		max_x = maxi(max_x, c.x)
-		min_z = mini(min_z, c.y)
-		max_z = maxi(max_z, c.y)
-	_chequear(min_x == 10 and max_x == 19 and min_z == 0 and max_z == 9,
-			"celdas en x 10..19, z 0..9 (salió x %d..%d, z %d..%d)" % [min_x, max_x, min_z, max_z])
 	# El socket de B, ya colocado, debe quedar exactamente sobre la puerta de A.
 	var socket_b := sala.sockets[0]
 	var pos_socket_b := col.origen + Direcciones.rotar_punto(socket_b.posicion_local, col.giros)
@@ -88,15 +77,16 @@ func _prueba_choque_en_grilla() -> void:
 	var sala := _sala_de_prueba()
 	var grilla := GrillaOcupacion.new()
 	# La sala A ocupa celdas 0..9 x 0..9.
-	grilla.ocupar(SalaDef.huella_rectangular(10, 10), 1)
+	var rect_a := Rect2(Vector2.ZERO, Vector2(5, 5))
+	grilla.ocupar(rect_a, 1)
 	var col := Colocacion.calcular(sala, 0, Vector3(5, 0, 2.5), Direcciones.Dir.ESTE, 2.5)
-	_chequear(grilla.esta_libre(col.celdas), "B pegada a A (sin solaparse) está libre")
-	grilla.ocupar(col.celdas, 2)
-	_chequear(not grilla.esta_libre(col.celdas), "colocar B otra vez ahora choca")
-	_chequear(grilla.id_en(Vector2i(0, 0)) == 1 and grilla.id_en(Vector2i(10, 0)) == 2, "ids de sala correctos por celda")
-	_chequear(grilla.cantidad_ocupadas() == 200, "200 celdas ocupadas")
-	grilla.liberar(col.celdas)
-	_chequear(grilla.cantidad_ocupadas() == 100 and grilla.id_en(Vector2i(10, 0)) == -1, "liberar deja solo A")
+	_chequear(grilla.esta_libre(col.rectangulo), "B pegada a A (sin solaparse) está libre")
+	grilla.ocupar(col.rectangulo, 2)
+	_chequear(not grilla.esta_libre(col.rectangulo), "colocar B otra vez ahora choca")
+	_chequear(grilla.id_en(Vector2(1, 1)) == 1 and grilla.id_en(Vector2(6, 1)) == 2, "ids de sala correctos por punto")
+	_chequear(grilla.cantidad_ocupadas() == 2, "dos rectángulos ocupados")
+	grilla.liberar(col.rectangulo)
+	_chequear(grilla.cantidad_ocupadas() == 1 and grilla.id_en(Vector2(6, 1)) == -1, "liberar deja solo A")
 
 
 func _prueba_anchos_distintos() -> void:

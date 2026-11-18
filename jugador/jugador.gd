@@ -79,13 +79,31 @@ func _input(event: InputEvent) -> void:
 		velocity = Vector3.ZERO
 		print("No-clip %s (WASD/mouse, E subir, Q bajar)" % ("ACTIVADO" if modo_noclip else "DESACTIVADO"))
 	elif event.is_action_pressed("ui_cancel"):
-		Input.mouse_mode = Input.MOUSE_MODE_VISIBLE if Input.mouse_mode == Input.MOUSE_MODE_CAPTURED else Input.MOUSE_MODE_CAPTURED
+		_mostrar_dialogo_salida()
 	elif event is InputEventMouseButton and event.pressed and Input.mouse_mode == Input.MOUSE_MODE_VISIBLE:
 		Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
 	elif event is InputEventMouseMotion and Input.mouse_mode == Input.MOUSE_MODE_CAPTURED:
 		rotate_y(-event.relative.x * sensibilidad_mouse)
 		cabeza.rotate_x(-event.relative.y * sensibilidad_mouse)
 		cabeza.rotation.x = clampf(cabeza.rotation.x, deg_to_rad(-80), deg_to_rad(80))
+
+func _mostrar_dialogo_salida() -> void:
+	var escena := get_tree().current_scene
+	var existente := escena.get_node_or_null("DialogoSalidaMenu") as ConfirmationDialog
+	if existente != null:
+		existente.popup_centered()
+		return
+	var dialogo := ConfirmationDialog.new()
+	dialogo.name = "DialogoSalidaMenu"
+	dialogo.title = "Salir de la partida"
+	dialogo.dialog_text = "¿Querés volver al menú principal?"
+	dialogo.ok_button_text = "Volver al menú"
+	dialogo.cancel_button_text = "Seguir jugando"
+	dialogo.confirmed.connect(func() -> void: get_tree().change_scene_to_file("res://pruebas/menu_principal.tscn"))
+	dialogo.canceled.connect(func() -> void: Input.mouse_mode = Input.MOUSE_MODE_CAPTURED)
+	escena.add_child(dialogo)
+	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
+	dialogo.popup_centered()
 
 func _physics_process(delta: float) -> void:
 	if _panel_desarrollo_abierto():

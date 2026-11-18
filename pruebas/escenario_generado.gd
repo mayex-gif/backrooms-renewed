@@ -74,6 +74,23 @@ func _crear_mapa() -> void:
 	var tipos_usados: Dictionary = {}
 	var instancias: Array[Node3D] = []
 	var sockets_conectados: Dictionary = {}
+	var aperturas_completas: Dictionary = {}
+	for ubicacion in resultado.salas:
+		if not ubicacion.has("conexion") or posmod(semilla + ubicacion.id * 31, 2) != 0:
+			continue
+		var conexion: Dictionary = ubicacion.conexion
+		var id_destino: int = conexion.sala_destino_id
+		var socket_destino_indice: int = conexion.socket_destino_indice
+		var socket_nuevo_indice: int = conexion.socket_nuevo_indice
+		var definicion_destino: SalaDef = resultado.salas[id_destino].sala
+		var definicion_nueva: SalaDef = ubicacion.sala
+		if definicion_destino.escena.resource_path.ends_with("sala_circular.tscn") or definicion_nueva.escena.resource_path.ends_with("sala_circular.tscn"):
+			continue
+		var socket_destino: SocketDef = definicion_destino.sockets[socket_destino_indice]
+		var socket_nuevo: SocketDef = definicion_nueva.sockets[socket_nuevo_indice]
+		if _es_unico_socket_del_lado(definicion_destino, socket_destino) and _es_unico_socket_del_lado(definicion_nueva, socket_nuevo) and _lados_coinciden(definicion_destino, socket_destino, definicion_nueva, socket_nuevo):
+			aperturas_completas["%d:%d" % [id_destino, socket_destino_indice]] = true
+			aperturas_completas["%d:%d" % [ubicacion.id, socket_nuevo_indice]] = true
 	for ubicacion in resultado.salas:
 		var sala_def: SalaDef = ubicacion.sala
 		if imprimir_huella_completa:
@@ -83,9 +100,16 @@ func _crear_mapa() -> void:
 		instancia.set("ancho_m", sala_def.ancho_m)
 		instancia.set("largo_m", sala_def.largo_m)
 		instancia.set("alto_m", sala_def.alto_m)
+		if sala_def.escena.resource_path.ends_with("sala_circular.tscn"):
+			instancia.set("radio_m", minf(sala_def.ancho_m, sala_def.largo_m) * 0.5)
 		if not sala_def.columnas_locales.is_empty():
 			instancia.set("columnas", sala_def.columnas_locales)
-		instancia.set("sockets", sala_def.sockets)
+		var sockets_instancia: Array[SocketDef] = []
+		for indice_socket in sala_def.sockets.size():
+			var socket_copia := sala_def.sockets[indice_socket].duplicate(true) as SocketDef
+			socket_copia.continuar_sala = aperturas_completas.has("%d:%d" % [ubicacion.id, indice_socket])
+			sockets_instancia.append(socket_copia)
+		instancia.set("sockets", sockets_instancia)
 		instancia.set("semilla_ambiente", semilla + ubicacion.id * 7919)
 		instancia.position = ubicacion.origen
 		instancia.rotation.y = ubicacion.angulo_y
@@ -103,14 +127,26 @@ func _crear_mapa() -> void:
 		sockets_conectados["%d:%d" % [ubicacion.id, relleno_def.socket_nuevo_indice]] = true
 		var sala_ancha_id: int = relleno_def.sala_destino_id if socket_destino.ancho > socket_nuevo.ancho else ubicacion.id
 		var socket_ancho: SocketDef = socket_destino if socket_destino.ancho > socket_nuevo.ancho else socket_nuevo
-		if relleno_def.relleno_por_lado > 0.001:
-			_agregar_relleno(instancias[sala_ancha_id], socket_ancho, maxf(socket_destino.ancho, socket_nuevo.ancho), relleno_def.ancho_pasaje, false, 2.3, "RellenoSocket_%d" % ubicacion.id)
+		var apertura_completa := aperturas_completas.has("%d:%d" % [relleno_def.sala_destino_id, relleno_def.socket_destino_indice])
+		if relleno_def.relleno_por_lado > 0.001 and not apertura_completa:
+			var alto_sala_ancha: float = sala_destino.alto_m if sala_ancha_id == relleno_def.sala_destino_id else sala_nueva.alto_m
+			var alto_abertura_ancha := minf(2.45, alto_sala_ancha)
+			_agregar_relleno(instancias[sala_ancha_id], socket_ancho, maxf(socket_destino.ancho, socket_nuevo.ancho), relleno_def.ancho_pasaje, false, alto_abertura_ancha, "RellenoSocket_%d" % ubicacion.id)
 		if not is_equal_approx(sala_destino.alto_m, sala_nueva.alto_m):
 			var sala_baja_id: int = relleno_def.sala_destino_id if sala_destino.alto_m < sala_nueva.alto_m else ubicacion.id
 			var socket_bajo: SocketDef = socket_destino if sala_destino.alto_m < sala_nueva.alto_m else socket_nuevo
 			var alto_bajo: float = minf(sala_destino.alto_m, sala_nueva.alto_m)
 			var alto_alto: float = maxf(sala_destino.alto_m, sala_nueva.alto_m)
-			_agregar_panel_superior(instancias[sala_baja_id], socket_bajo, alto_bajo, alto_alto)
+			if apertura_completa:
+				var definicion_baja: SalaDef = resultado.salas[sala_baja_id].sala
+				_agregar_cierre_superior_completo(instancias[sala_baja_id], socket_bajo, definicion_baja, alto_bajo, alto_alto)
+			else:
+				var alto_abertura_destino := minf(2.45, sala_destino.alto_m)
+				var alto_abertura_nueva := minf(2.45, sala_nueva.alto_m)
+				if not is_equal_approx(alto_abertura_destino, alto_abertura_nueva):
+					var id_abertura_mayor: int = relleno_def.sala_destino_id if alto_abertura_destino > alto_abertura_nueva else ubicacion.id
+					var socket_abertura_mayor: SocketDef = socket_destino if alto_abertura_destino > alto_abertura_nueva else socket_nuevo
+					_agregar_panel_superior(instancias[id_abertura_mayor], socket_abertura_mayor, minf(alto_abertura_destino, alto_abertura_nueva), maxf(alto_abertura_destino, alto_abertura_nueva))
 	for ubicacion in resultado.salas:
 		var sala_def: SalaDef = ubicacion.sala
 		for socket_indice in sala_def.sockets.size():
@@ -134,13 +170,26 @@ func _actualizar_limites(salas: Array) -> void:
 	_limites_maximos = Vector2(-INF, -INF)
 	for ubicacion in salas:
 		var definicion: SalaDef = ubicacion.sala
-		var ancho := definicion.ancho_m if posmod(ubicacion.giros, 2) == 0 else definicion.largo_m
-		var largo := definicion.largo_m if posmod(ubicacion.giros, 2) == 0 else definicion.ancho_m
-		var origen := Vector2(ubicacion.origen.x, ubicacion.origen.z)
-		_limites_minimos.x = minf(_limites_minimos.x, origen.x)
-		_limites_minimos.y = minf(_limites_minimos.y, origen.y)
-		_limites_maximos.x = maxf(_limites_maximos.x, origen.x + ancho)
-		_limites_maximos.y = maxf(_limites_maximos.y, origen.y + largo)
+		var rect: Rect2 = ubicacion.rectangulo
+		_limites_minimos.x = minf(_limites_minimos.x, rect.position.x)
+		_limites_minimos.y = minf(_limites_minimos.y, rect.position.y)
+		_limites_maximos.x = maxf(_limites_maximos.x, rect.end.x)
+		_limites_maximos.y = maxf(_limites_maximos.y, rect.end.y)
+
+func _es_unico_socket_del_lado(definicion: SalaDef, socket: SocketDef) -> bool:
+	for otro in definicion.sockets:
+		if otro != socket and otro.direccion == socket.direccion:
+			return false
+	return true
+
+func _lados_coinciden(def_a: SalaDef, socket_a: SocketDef, def_b: SalaDef, socket_b: SocketDef) -> bool:
+	var largo_a := def_a.ancho_m if socket_a.direccion == Direcciones.Dir.NORTE or socket_a.direccion == Direcciones.Dir.SUR else def_a.largo_m
+	var largo_b := def_b.ancho_m if socket_b.direccion == Direcciones.Dir.NORTE or socket_b.direccion == Direcciones.Dir.SUR else def_b.largo_m
+	if not is_equal_approx(largo_a, largo_b):
+		return false
+	var centro_a := socket_a.posicion_local.x if socket_a.direccion == Direcciones.Dir.NORTE or socket_a.direccion == Direcciones.Dir.SUR else socket_a.posicion_local.z
+	var centro_b := socket_b.posicion_local.x if socket_b.direccion == Direcciones.Dir.NORTE or socket_b.direccion == Direcciones.Dir.SUR else socket_b.posicion_local.z
+	return is_equal_approx(centro_a, largo_a * 0.5) and is_equal_approx(centro_b, largo_b * 0.5)
 
 func _agregar_relleno(sala: Node3D, socket: SocketDef, ancho_hueco: float, ancho_pasaje: float, sellado: bool, altura: float, nombre: String) -> void:
 	var script_relleno: Script = load("res://salas/relleno_socket.gd")
@@ -170,5 +219,28 @@ func _agregar_panel_superior(sala: Node3D, socket: SocketDef, alto_bajo: float, 
 	var malla := BoxMesh.new()
 	malla.size = forma.size
 	visual.mesh = malla
+	cuerpo.add_child(visual)
+	sala.add_child(cuerpo)
+
+func _agregar_cierre_superior_completo(sala: Node3D, socket: SocketDef, definicion: SalaDef, alto_bajo: float, alto_alto: float) -> void:
+	var largo_pared := definicion.ancho_m if socket.direccion == Direcciones.Dir.NORTE or socket.direccion == Direcciones.Dir.SUR else definicion.largo_m
+	var alto_panel := alto_alto - alto_bajo
+	var cuerpo := StaticBody3D.new()
+	cuerpo.name = "CierreSuperiorAberturaCompleta"
+	var caja := BoxShape3D.new()
+	var visual := MeshInstance3D.new()
+	var malla := BoxMesh.new()
+	if socket.direccion == Direcciones.Dir.NORTE or socket.direccion == Direcciones.Dir.SUR:
+		cuerpo.position = Vector3(largo_pared * 0.5, alto_bajo + alto_panel * 0.5, socket.posicion_local.z)
+		caja.size = Vector3(largo_pared, alto_panel, 0.2)
+	else:
+		cuerpo.position = Vector3(socket.posicion_local.x, alto_bajo + alto_panel * 0.5, largo_pared * 0.5)
+		caja.size = Vector3(0.2, alto_panel, largo_pared)
+	visual.position = Vector3.ZERO
+	malla.size = caja.size
+	visual.mesh = malla
+	var colision := CollisionShape3D.new()
+	colision.shape = caja
+	cuerpo.add_child(colision)
 	cuerpo.add_child(visual)
 	sala.add_child(cuerpo)

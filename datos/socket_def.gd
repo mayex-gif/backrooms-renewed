@@ -11,3 +11,5 @@ extends Resource
 
 ## Ancho del hueco en metros (por ejemplo 1.0, 1.5, 2.5, 5.0, 7.5).
 @export var ancho: float = 2.5
+## Abre toda la pared para que dos módulos se lean como un único espacio.
+@export var continuar_sala: bool = false

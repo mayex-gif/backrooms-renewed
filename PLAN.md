@@ -56,11 +56,56 @@ salas y produce una pausa cercana a un segundo. Se posterga la optimización por
 ahora. El modo diseñado reconstruye como máximo 39 salas al aplicar cambios F4;
 hay que comprobar si esa acción también genera una pausa perceptible.
 
+### Plan de rendimiento y variedad geométrica
+
+- [x] Cambiar la ocupación del generador de celdas de 0,5 m a rectángulos AABB en metros, rotados en pasos de 90° y comparados con tolerancia de 1 mm.
+- [x] Usar el cuadrado envolvente para la sala circular y validar los sockets con ancho/largo reales, sin construir huellas de celdas.
+- [ ] Comprobar con semillas repetibles las conexiones entre salas cuyos centros de puerta caen en posiciones de 1,25/3,75 m y revisar si cambia el agotamiento.
+- [x] Aumentar para prueba el paso y el tamaño de tiles, luminarias y vigas del techo; inspeccionar en Godot si se ve proporcionado.
+- [x] Retirar los marcos decorativos: se solapaban en intersecciones y conexiones cercanas.
+- [x] Agrandar las columnas y desplazar cada una al tile sin luminaria más cercano, evitando que se amontonen entre sí.
+- [x] Crear algunas conexiones de pared completamente abiertas para que salas contiguas se lean como un único espacio; seleccionar de forma reproducible, coordinar ambos lados y cerrar con un panel la franja superior cuando las alturas difieran.
+- [x] Dimensionar los rellenos laterales hasta la altura real de la abertura y cerrar diferencias de altura entre puertas en el lado de la abertura más alta.
+- [x] Limitar las aperturas completas a paredes únicas, centradas y de igual longitud para que no queden extremos descubiertos.
+- [x] Desplazar de forma determinista los sockets centrados del catálogo, respetando el ancho de abertura y el margen del borde.
+- [x] Mantener conexiones entre sockets de distinto ancho y dimensionar los rellenos según la abertura mayor; el generador no exige anchos idénticos.
+- [x] Alejar luminarias del perímetro de las salas y reducir su alcance e intensidad base.
+- [x] Hacer que el parpadeo apague y encienda tanto la luz como la emisión visible del panel.
+- [x] Aumentar duración y frecuencia visible de los ciclos de apagado/encendido para identificar los fluorescentes intermitentes.
+- [x] Bajar el plenum del techo para que se solape con las placas y no deje una ranura visible, también en salas bajas.
+- [x] Añadir pasillos estrechos y galerías grandes con varias salidas, compatibles con conexiones de ancho distinto y aperturas amplias.
+- [ ] Rehacer la ocupación y colocación de la sala circular para permitir conexiones laterales tangentes a su perímetro y completar el piso expuesto sin conservar una caja cuadrada.
+- [ ] Revisar visualmente colisiones y aperturas, incluida la variante circular y salas con múltiples puertas cercanas.
+- [ ] Medir por separado el tiempo de generación matemática y el de instanciación de escenas para 24/36/48/60/72 salas; registrar dispositivo, semilla y resultados.
+- [ ] Revisar Proyecto > Configuración > Rendering > Limits > Cluster Builder y confirmar el límite de luces frente a la cantidad activa del mapa.
+- [ ] Reducir el costo de nodos por sala: evaluar mallas combinadas y quitar colisiones a decoración que no sea transitable.
+- [ ] Extender solo las salas nuevas al ampliar el mapa, evitando borrar e instanciar de nuevo todas las anteriores.
+- [ ] Descargar salas lejanas y conservar sus datos para regenerarlas; coordinarlo con el registro rectangular de ocupación.
+
+**Estado de esta iteración:** la colocación y la comprobación de solapamiento usan
+rectángulos. Los cambios de techo y marcos están implementados para inspección;
+no se consideran aprobados visualmente ni medidos en rendimiento hasta probarlos
+en Godot. La ocupación circular es deliberadamente conservadora porque usa su
+cuadrado envolvente.
+
 ## Hito 5 — Atmósfera y publicación
 
 - [ ] Cerrar materiales, iluminación, niebla y sonido ambiental; la iluminación actual es editable desde F4.
 - [ ] Revisar el zumbido de fluorescentes con pruebas auditivas y atenuación por distancia.
 - [ ] Preparar build, video corto y publicación en itch.io.
+
+## Hito 6 — Editor de mapas
+
+- [x] Crear un editor 2D por módulos con catálogo, rotación, colocación sobre grilla, zoom y borrado.
+- [x] Guardar y cargar mapas personalizados como JSON desde el selector de archivos.
+- [x] Autoguardar los cambios en `user://saves`, reabrir archivos guardados para editarlos, mover piezas con arrastre y jugar el mapa actual.
+- [x] Reconstruir conexiones compatibles por posición/dirección y cerrar las salidas que no conectan en la escena jugable.
+- [x] Detectar paredes compartidas entre módulos aunque los sockets del catálogo no coincidan; generar aberturas enfrentadas y evitar huecos en paredes exteriores.
+- [x] Reparar mapas guardados antiguos al reabrirlos y admitir pequeños huecos entre bordes, creando un puente de piso para mantener el paso transitable.
+- [x] Añadir una opción en el editor para quitar por completo paredes compartidas cuando los dos lados tienen la misma longitud y están alineados.
+- [x] Usar una resolución base de 1920 × 1080 y una interfaz que se adapta al tamaño de ventana.
+- [ ] Añadir rellenos visuales para diferencias de ancho/alto en conexiones del mapa personalizado.
+- [ ] Conectar salas circulares al perímetro curvo en el editor; sus salidas todavía requieren tratamiento específico.
 
 ## Criterios transversales
 

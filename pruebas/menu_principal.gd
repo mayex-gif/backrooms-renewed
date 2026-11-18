@@ -14,7 +14,7 @@ func _crear_interfaz() -> void:
 	centro.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	add_child(centro)
 	var panel := PanelContainer.new()
-	panel.custom_minimum_size = Vector2(520, 390)
+	panel.custom_minimum_size = Vector2(620, 700)
 	centro.add_child(panel)
 	var estilo := StyleBoxFlat.new()
 	estilo.bg_color = Color(0.15, 0.14, 0.105, 0.97)
@@ -55,6 +55,16 @@ func _crear_interfaz() -> void:
 	var aleatorio := _crear_boton("Generación aleatoria", "Conserva el mapa procedural con semilla y expansión por bloques.")
 	aleatorio.pressed.connect(_abrir_escena.bind("res://pruebas/escenario_generado.tscn"))
 	columna.add_child(aleatorio)
+	var editor := _crear_boton("Editor de mapas", "Diseñá un mapa personalizado y guardalo para continuarlo después.")
+	editor.pressed.connect(_abrir_escena.bind("res://pruebas/editor_mapa.tscn"))
+	columna.add_child(editor)
+	if FileAccess.file_exists("user://saves/mapa_actual.json"):
+		var continuar_mapa := _crear_boton("Editar último mapa guardado", "Abrí el último mapa para seguir editándolo.")
+		continuar_mapa.pressed.connect(_abrir_escena.bind("res://pruebas/editor_mapa.tscn"))
+		columna.add_child(continuar_mapa)
+		var jugar_mapa := _crear_boton("Jugar último mapa guardado", "Cargá y recorré el mapa personalizado guardado.")
+		jugar_mapa.pressed.connect(_abrir_escena.bind("res://pruebas/mapa_guardado.tscn"))
+		columna.add_child(jugar_mapa)
 	var salir := Button.new()
 	salir.text = "Salir"
 	salir.custom_minimum_size.y = 42

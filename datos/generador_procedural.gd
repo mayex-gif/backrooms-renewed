@@ -26,7 +26,7 @@ func generar(definiciones: Array[SalaDef], semilla: int, max_salas: int) -> Dict
 	var inicial := _elegir_definicion_valida(definiciones_validas)
 	if inicial == null:
 		return _resultado()
-	_agregar_sala(inicial, Vector3.ZERO, 0, inicial.huella.duplicate())
+	_agregar_sala(inicial, Vector3.ZERO, 0, Rect2(Vector2.ZERO, Vector2(inicial.ancho_m, inicial.largo_m)))
 	for socket_indice in inicial.sockets.size():
 		_agregar_socket_pendiente(0, inicial, socket_indice, Vector3.ZERO, 0)
 	while not _pendientes.is_empty() and _colocadas.size() < max_salas:
@@ -37,7 +37,7 @@ func generar(definiciones: Array[SalaDef], semilla: int, max_salas: int) -> Dict
 		var elegida: Dictionary = _elegir_ponderada(opciones)
 		var sala: SalaDef = elegida.sala
 		var id_nuevo := _colocadas.size()
-		_agregar_sala(sala, elegida.origen, elegida.giros, elegida.celdas)
+		_agregar_sala(sala, elegida.origen, elegida.giros, elegida.rectangulo)
 		_colocadas[id_nuevo]["conexion"] = {
 			"sala_destino_id": destino.sala_id,
 			"socket_destino_indice": destino.socket_indice,
@@ -99,7 +99,7 @@ func _buscar_colocaciones(definiciones: Array[SalaDef], destino: Dictionary) -> 
 				destino.direccion,
 				destino.ancho
 			)
-			if not col.alineada or not _grilla.esta_libre(col.celdas):
+			if not _grilla.esta_libre(col.rectangulo):
 				continue
 			var id_recurso := definicion.get_instance_id()
 			sockets_viables_por_sala[id_recurso] = sockets_viables_por_sala.get(id_recurso, 0) + 1
@@ -109,7 +109,7 @@ func _buscar_colocaciones(definiciones: Array[SalaDef], destino: Dictionary) -> 
 				"origen": col.origen,
 				"giros": col.giros,
 				"angulo_y": col.angulo_y,
-				"celdas": col.celdas,
+				"rectangulo": col.rectangulo,
 				"ancho_pasaje": col.ancho_pasaje,
 				"relleno_por_lado": col.relleno_por_lado,
 				"peso": 0.0
@@ -139,16 +139,16 @@ func _elegir_ponderada(opciones: Array[Dictionary]) -> Dictionary:
 			return opcion
 	return opciones.back()
 
-func _agregar_sala(definicion: SalaDef, origen: Vector3, giros: int, celdas: Array[Vector2i]) -> void:
+func _agregar_sala(definicion: SalaDef, origen: Vector3, giros: int, rectangulo: Rect2) -> void:
 	var id := _colocadas.size()
-	_grilla.ocupar(celdas, id)
+	_grilla.ocupar(rectangulo, id)
 	_colocadas.append({
 		"id": id,
 		"sala": definicion,
 		"origen": origen,
 		"giros": giros,
 		"angulo_y": -giros * PI / 2.0,
-		"celdas": celdas
+		"rectangulo": rectangulo
 	})
 
 func _agregar_socket_pendiente(id_sala: int, definicion: SalaDef, indice: int, origen: Vector3, giros: int) -> void:

@@ -1,5 +1,5 @@
 extends RefCounted
-## Catálogo pequeño para probar variedad de huellas y ramificaciones.
+## Catálogo pequeño para probar variedad de dimensiones y ramificaciones.
 
 static func crear(multiplicador_grandes: float = 1.0, multiplicador_abiertas: float = 1.0) -> Array[SalaDef]:
 	var catalogo: Array[SalaDef] = []
@@ -27,6 +27,14 @@ static func crear(multiplicador_grandes: float = 1.0, multiplicador_abiertas: fl
 		[Direcciones.Dir.NORTE, Vector3(1.25, 0, 0)],
 		[Direcciones.Dir.NORTE, Vector3(3.75, 0, 0)],
 		[Direcciones.Dir.SUR, Vector3(2.5, 0, 5)]
+	]))
+	catalogo.append(_sala("Pasillo angosto 2.5x5", 2.5, 5.0, 1.5, 28.0, [
+		[Direcciones.Dir.NORTE, Vector3(1.25, 0, 0)],
+		[Direcciones.Dir.SUR, Vector3(1.25, 0, 5)]
+	]))
+	catalogo.append(_sala("Pasillo lateral 2.5x7.5", 2.5, 7.5, 1.5, 22.0, [
+		[Direcciones.Dir.NORTE, Vector3(1.25, 0, 0)],
+		[Direcciones.Dir.SUR, Vector3(1.25, 0, 7.5)]
 	]))
 
 	# Salas medianas con salidas desplazadas y combinaciones de tres/cuatro lados.
@@ -76,6 +84,16 @@ static func crear(multiplicador_grandes: float = 1.0, multiplicador_abiertas: fl
 		[Direcciones.Dir.ESTE, Vector3(10, 0, 5)],
 		[Direcciones.Dir.SUR, Vector3(5, 0, 10)],
 		[Direcciones.Dir.OESTE, Vector3(0, 0, 5)]
+	]))
+	catalogo.append(_sala("Galería larga 5x15", 5.0, 15.0, 2.5, 34.0, [
+		[Direcciones.Dir.NORTE, Vector3(2.5, 0, 0)],
+		[Direcciones.Dir.SUR, Vector3(2.5, 0, 15)]
+	]))
+	catalogo.append(_sala("Gran galería 10x20", 10.0, 20.0, 3.5, 26.0, [
+		[Direcciones.Dir.NORTE, Vector3(5, 0, 0)],
+		[Direcciones.Dir.SUR, Vector3(5, 0, 20)],
+		[Direcciones.Dir.ESTE, Vector3(10, 0, 10)],
+		[Direcciones.Dir.OESTE, Vector3(0, 0, 10)]
 	]))
 
 	# Finales con una única salida. El peso bajo evita que dominen el recorrido.
@@ -137,15 +155,22 @@ static func crear(multiplicador_grandes: float = 1.0, multiplicador_abiertas: fl
 				continue # Deja libre el acceso este.
 			sala_columnas.columnas_locales.append(Vector3(x, 0, z))
 	catalogo.append(sala_columnas)
-	var circular := _sala("Sala circular 10 m", 10.0, 10.0, 2.5, 18.0, [
+	var circular := _sala("Sala circular 10 m", 10.0, 10.0, 2.5, 58.0, [
 		[Direcciones.Dir.NORTE, Vector3(5, 0, 0)],
 		[Direcciones.Dir.ESTE, Vector3(10, 0, 5)],
 		[Direcciones.Dir.SUR, Vector3(5, 0, 10)],
 		[Direcciones.Dir.OESTE, Vector3(0, 0, 5)]
 	], 4.2)
 	circular.escena = load("res://salas/sala_circular.tscn")
-	circular.huella = SalaDef.huella_circular(10)
 	catalogo.append(circular)
+	var circular_grande := _sala("Sala circular amplia 15 m", 15.0, 15.0, 3.0, 42.0, [
+		[Direcciones.Dir.NORTE, Vector3(7.5, 0, 0)],
+		[Direcciones.Dir.ESTE, Vector3(15, 0, 7.5)],
+		[Direcciones.Dir.SUR, Vector3(7.5, 0, 15)],
+		[Direcciones.Dir.OESTE, Vector3(0, 0, 7.5)]
+	])
+	circular_grande.escena = load("res://salas/sala_circular.tscn")
+	catalogo.append(circular_grande)
 	for definicion in catalogo:
 		if definicion.ancho_m >= 10.0 or definicion.largo_m >= 10.0:
 			definicion.peso *= multiplicador_grandes
@@ -161,11 +186,24 @@ static func _sala(nombre: String, ancho: float, largo: float, ancho_puerta: floa
 	definicion.largo_m = largo
 	definicion.alto_m = alto
 	definicion.peso = peso
-	definicion.huella = SalaDef.huella_rectangular(roundi(ancho / Direcciones.TAMANO_CELDA), roundi(largo / Direcciones.TAMANO_CELDA))
+	var rng_posiciones := RandomNumberGenerator.new()
+	var hash_nombre: int = nombre.hash()
+	rng_posiciones.seed = hash_nombre if hash_nombre >= 0 else -hash_nombre
 	for dato in datos_sockets:
 		var socket := SocketDef.new()
 		socket.direccion = dato[0]
 		socket.posicion_local = dato[1]
 		socket.ancho = ancho_puerta
+		var es_borde_horizontal := socket.direccion == Direcciones.Dir.NORTE or socket.direccion == Direcciones.Dir.SUR
+		var largo_lado := ancho if es_borde_horizontal else largo
+		var lateral := socket.posicion_local.x if es_borde_horizontal else socket.posicion_local.z
+		if is_equal_approx(lateral, largo_lado * 0.5):
+			var desplazamiento_maximo := maxf(0.0, largo_lado * 0.5 - socket.ancho * 0.5 - 0.75)
+			if desplazamiento_maximo >= 0.45:
+				var desplazamiento := rng_posiciones.randf_range(-desplazamiento_maximo, desplazamiento_maximo)
+				if es_borde_horizontal:
+					socket.posicion_local.x += desplazamiento
+				else:
+					socket.posicion_local.z += desplazamiento
 		definicion.sockets.append(socket)
 	return definicion
