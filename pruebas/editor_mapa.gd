@@ -1,6 +1,8 @@
 extends Control
 ## Editor 2D simple de módulos. Guarda diseños JSON en el espacio del usuario.
 
+const ConexionesMapaScript = preload("res://datos/conexiones_mapa.gd")
+
 var _catalogo: Array[SalaDef] = []
 var _salas: Array[Dictionary] = []
 var _seleccion := 0
@@ -16,6 +18,9 @@ var _arrastre := -1
 var _desfase_arrastre := Vector2.ZERO
 var _paredes_abiertas := false
 var _check_paredes: CheckButton
+## Módulos del archivo cuyo tipo ya no existe en el catálogo. Se conservan tal
+## cual para que el autoguardado no los borre del JSON.
+var _desconocidas: Array = []
 
 func _ready() -> void:
 	var script_catalogo: Script = load("res://salas/catalogo_salas.gd")
@@ -52,6 +57,7 @@ func _crear_interfaz() -> void:
 	_check_paredes.toggled.connect(func(activo: bool) -> void:
 		_paredes_abiertas = activo
 		_guardar_actual()
+		_lienzo.queue_redraw()
 	)
 	barra.add_child(_check_paredes)
 	_agregar_boton(barra, "Limpiar", _limpiar)
@@ -64,7 +70,7 @@ func _crear_interfaz() -> void:
 	columna.add_child(_lienzo)
 	_estado = Label.new()
 	_estado.custom_minimum_size.y = 28
-	_estado.text = "Click: colocar · arrastrar: mover · botón derecho: borrar · rueda: zoom · R: girar · guardado automático"
+	_estado.text = "Click: colocar · arrastrar: mover · botón derecho: borrar · rueda: zoom · R: girar · verde: puerta · celeste: pared abierta · rojo: salas superpuestas"
 	columna.add_child(_estado)
 	_dialogo = FileDialog.new()
 	_dialogo.access = FileDialog.ACCESS_FILESYSTEM
@@ -85,6 +91,7 @@ func _girar() -> void:
 
 func _limpiar() -> void:
 	_salas.clear()
+	_desconocidas.clear()
 	_cambio_mapa("Mapa limpio.")
 
 func _abrir_guardar() -> void:
@@ -103,27 +110,12 @@ func _archivo_elegido(ruta: String) -> void:
 		if archivo == null:
 			_estado.text = "No se pudo guardar el archivo."
 			return
-		archivo.store_string(JSON.stringify({"version": 1, "paredes_abiertas": _paredes_abiertas, "salas": _salas.map(func(s: Dictionary) -> Dictionary: return {"tipo": s.tipo, "x": s.x, "z": s.z, "giros": s.giros})}, "\t"))
+		archivo.store_string(_serializar())
 		_ruta_actual = ruta
 		_estado.text = "Mapa guardado: %s" % ruta
 		_actualizar_guardados()
 	else:
-		var archivo := FileAccess.open(ruta, FileAccess.READ)
-		if archivo == null:
-			_estado.text = "No se pudo abrir el archivo."
-			return
-		var datos: Variant = JSON.parse_string(archivo.get_as_text())
-		if not datos is Dictionary or not datos.has("salas"):
-			_estado.text = "El archivo no contiene un mapa válido."
-			return
-		_salas.clear()
-		_paredes_abiertas = bool(datos.get("paredes_abiertas", false))
-		_check_paredes.button_pressed = _paredes_abiertas
-		for fila in datos.salas:
-			if _indice_tipo(String(fila.get("tipo", ""))) >= 0:
-				_salas.append({"tipo": fila.tipo, "x": float(fila.x), "z": float(fila.z), "giros": int(fila.giros)})
-		_ruta_actual = ruta
-		_estado.text = "Mapa cargado: %d salas" % _salas.size()
+		_cargar_ruta(ruta)
 	_lienzo.queue_redraw()
 	_actualizar_guardados()
 
@@ -133,9 +125,15 @@ func _guardar_actual() -> void:
 	if archivo == null:
 		_estado.text = "No se pudo guardar el mapa."
 		return
-	archivo.store_string(JSON.stringify({"version": 1, "paredes_abiertas": _paredes_abiertas, "salas": _salas.map(func(s: Dictionary) -> Dictionary: return {"tipo": s.tipo, "x": s.x, "z": s.z, "giros": s.giros})}, "\t"))
+	archivo.store_string(_serializar())
 	_estado.text = "Guardado: %s" % _ruta_actual.get_file()
 	_actualizar_guardados()
+
+## Texto JSON del mapa actual. Conserva los módulos de tipo desconocido.
+func _serializar() -> String:
+	var filas: Array = _salas.map(func(s: Dictionary) -> Dictionary: return {"tipo": s.tipo, "x": s.x, "z": s.z, "giros": s.giros})
+	filas.append_array(_desconocidas)
+	return JSON.stringify({"version": 1, "paredes_abiertas": _paredes_abiertas, "salas": filas}, "\t")
 
 func _actualizar_guardados() -> void:
 	if _lista_guardados == null:
@@ -169,11 +167,16 @@ func _cargar_ruta(ruta: String) -> void:
 		_estado.text = "El archivo no contiene un mapa válido."
 		return
 	_salas.clear()
+	_desconocidas.clear()
 	_paredes_abiertas = bool(datos.get("paredes_abiertas", false))
-	_check_paredes.button_pressed = _paredes_abiertas
+	# Sin señal: si no, el CheckButton dispara _guardar_actual() con la lista de
+	# salas vacía y pisa el archivo que estaba abierto antes de este.
+	_check_paredes.set_pressed_no_signal(_paredes_abiertas)
 	for fila in datos.salas:
 		if _indice_tipo(String(fila.get("tipo", ""))) >= 0:
 			_salas.append({"tipo": fila.tipo, "x": float(fila.x), "z": float(fila.z), "giros": int(fila.giros)})
+		else:
+			_desconocidas.append(fila)
 	for i in _salas.size():
 		var existente := _rect_sala(_salas[i])
 		var deseado := existente.position
@@ -181,7 +184,15 @@ func _cargar_ruta(ruta: String) -> void:
 		_salas[i].x = reparado.x
 		_salas[i].z = reparado.y
 	_ruta_actual = ruta
-	_cambio_mapa("Mapa cargado para editar: %s" % ruta.get_file())
+	var aviso := ""
+	if not _desconocidas.is_empty():
+		aviso += " · %d módulos de un tipo que ya no existe se conservan sin mostrarse" % _desconocidas.size()
+	var solapes := ConexionesMapaScript.pares_solapados(_modulos_para_conexiones()).size()
+	if solapes > 0:
+		aviso += " · %d pares de salas superpuestas (en rojo)" % solapes
+	_cambio_mapa("")
+	# _cambio_mapa guarda y deja "Guardado: ..." en la barra; el aviso va después.
+	_estado.text = "Mapa cargado para editar: %s%s" % [ruta.get_file(), aviso]
 
 func _jugar() -> void:
 	_guardar_actual()
@@ -196,9 +207,13 @@ func _indice_tipo(nombre: String) -> int:
 func _entrada_lienzo(evento: InputEvent) -> void:
 	if evento is InputEventMouseMotion and _arrastre >= 0:
 		var deseado := (_punto_mapa(evento.position) - _desfase_arrastre).snapped(Vector2(0.5, 0.5))
-		var p := _ajustar_a_vecino(deseado, _rect_sala(_salas[_arrastre]).size, _arrastre)
-		_salas[_arrastre].x = p.x
-		_salas[_arrastre].z = p.y
+		var tamano := _rect_sala(_salas[_arrastre]).size
+		var p := _ajustar_a_vecino(deseado, tamano, _arrastre)
+		if _hay_solape(Rect2(p, tamano), _arrastre):
+			_estado.text = "Esa posición se superpone con otra sala; la pieza se queda en el último lugar válido."
+		else:
+			_salas[_arrastre].x = p.x
+			_salas[_arrastre].z = p.y
 		_lienzo.queue_redraw()
 	elif evento is InputEventMouseButton:
 		if evento.button_index == MOUSE_BUTTON_LEFT and not evento.pressed and _arrastre >= 0:
@@ -218,8 +233,30 @@ func _entrada_lienzo(evento: InputEvent) -> void:
 		elif evento.pressed and evento.button_index == MOUSE_BUTTON_RIGHT:
 			_borrar(evento.position)
 		_lienzo.queue_redraw()
-	elif evento is InputEventKey and evento.pressed and evento.keycode == KEY_R:
+
+## El lienzo no tiene foco de teclado, así que las teclas no llegan a su
+## gui_input: se escuchan desde el nodo raíz.
+func _unhandled_key_input(evento: InputEvent) -> void:
+	var tecla := evento as InputEventKey
+	if tecla != null and tecla.pressed and not tecla.echo and tecla.keycode == KEY_R:
 		_girar()
+		get_viewport().set_input_as_handled()
+
+func _hay_solape(rect: Rect2, ignorar: int) -> bool:
+	for i in _salas.size():
+		if i != ignorar and rect.intersects(_rect_sala(_salas[i]), false):
+			return true
+	return false
+
+func _es_circular(definicion: SalaDef) -> bool:
+	return definicion.escena != null and definicion.escena.resource_path.ends_with("sala_circular.tscn")
+
+## Datos mínimos de cada sala para ConexionesMapa (el mismo cálculo que usa la escena jugable).
+func _modulos_para_conexiones() -> Array[Dictionary]:
+	var modulos: Array[Dictionary] = []
+	for sala in _salas:
+		modulos.append({"rect": _rect_sala(sala), "circular": _es_circular(_catalogo[_indice_tipo(sala.tipo)])})
+	return modulos
 
 func _colocar(posicion: Vector2) -> void:
 	var definicion := _catalogo[_seleccion]
@@ -292,10 +329,31 @@ func _dibujar() -> void:
 	for z in range(0, ceili(_lienzo.size.y / paso) + 1):
 		var pz := fposmod(centro.y, paso) + z * paso
 		_lienzo.draw_line(Vector2(0, pz), Vector2(_lienzo.size.x, pz), Color(0.32, 0.32, 0.29), 1.0)
-	for sala in _salas:
+	var modulos := _modulos_para_conexiones()
+	var solapadas := {}
+	for par in ConexionesMapaScript.pares_solapados(modulos):
+		solapadas[par.x] = true
+		solapadas[par.y] = true
+	for i in _salas.size():
+		var sala := _salas[i]
 		var rect := _rect_sala(sala)
 		var dibujado := Rect2(centro + rect.position * _escala, rect.size * _escala)
-		var color := Color(0.47, 0.42, 0.27) if not sala.tipo.contains("circular") else Color(0.30, 0.43, 0.38)
+		var circular: bool = modulos[i].circular
+		var color := Color(0.47, 0.42, 0.27) if not circular else Color(0.30, 0.43, 0.38)
+		if solapadas.has(i):
+			color = Color(0.62, 0.22, 0.20)
 		_lienzo.draw_rect(dibujado, color)
 		_lienzo.draw_rect(dibujado, Color(0.83, 0.79, 0.62), false, 2.0)
-		_lienzo.draw_string(ThemeDB.fallback_font, dibujado.position + Vector2(5, 18), sala.tipo, HORIZONTAL_ALIGNMENT_LEFT, -1, 12, Color.WHITE)
+		var etiqueta: String = sala.tipo + (" (sin puertas por ahora)" if circular else "")
+		_lienzo.draw_string(ThemeDB.fallback_font, dibujado.position + Vector2(5, 18), etiqueta, HORIZONTAL_ALIGNMENT_LEFT, -1, 12, Color.WHITE)
+	for conexion in ConexionesMapaScript.calcular(modulos, _paredes_abiertas):
+		_dibujar_puerta(conexion, centro)
+
+## Marca verde cada puerta que va a generarse; celeste si se abre toda la pared.
+func _dibujar_puerta(conexion: Dictionary, centro: Vector2) -> void:
+	var vertical: bool = conexion.dir_a == Direcciones.Dir.ESTE or conexion.dir_a == Direcciones.Dir.OESTE
+	var mitad := (Vector2(0.0, conexion.ancho) if vertical else Vector2(conexion.ancho, 0.0)) * 0.5 * _escala
+	var color := Color(0.55, 0.95, 1.0) if conexion.completa else Color(0.55, 1.0, 0.55)
+	for clave in ["punto_a", "punto_b"]:
+		var punto: Vector2 = centro + conexion[clave] * _escala
+		_lienzo.draw_line(punto - mitad, punto + mitad, color, 5.0)

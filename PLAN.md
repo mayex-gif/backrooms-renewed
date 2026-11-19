@@ -82,11 +82,11 @@ hay que comprobar si esa acción también genera una pausa perceptible.
 - [ ] Extender solo las salas nuevas al ampliar el mapa, evitando borrar e instanciar de nuevo todas las anteriores.
 - [ ] Descargar salas lejanas y conservar sus datos para regenerarlas; coordinarlo con el registro rectangular de ocupación.
 
-**Estado de esta iteración:** la colocación y la comprobación de solapamiento usan
-rectángulos. Los cambios de techo y marcos están implementados para inspección;
-no se consideran aprobados visualmente ni medidos en rendimiento hasta probarlos
-en Godot. La ocupación circular es deliberadamente conservadora porque usa su
-cuadrado envolvente.
+**Estado de esta iteración:** la colocación, las puertas del editor y las de la
+escena jugable usan rectángulos y un cálculo compartido. Se añadieron pruebas
+automatizadas, pero todavía no se ejecutaron en Godot. Los paneles de altura y
+las correcciones del editor necesitan validación visual. La ocupación circular
+es deliberadamente conservadora porque usa su cuadrado envolvente.
 
 ## Hito 5 — Atmósfera y publicación
 
@@ -104,7 +104,15 @@ cuadrado envolvente.
 - [x] Reparar mapas guardados antiguos al reabrirlos y admitir pequeños huecos entre bordes, creando un puente de piso para mantener el paso transitable.
 - [x] Añadir una opción en el editor para quitar por completo paredes compartidas cuando los dos lados tienen la misma longitud y están alineados.
 - [x] Usar una resolución base de 1920 × 1080 y una interfaz que se adapta al tamaño de ventana.
-- [ ] Añadir rellenos visuales para diferencias de ancho/alto en conexiones del mapa personalizado.
+- [x] Añadir paneles para diferencias de altura en puertas y paredes completamente abiertas entre salas del mapa personalizado.
+- [ ] Validar en Godot los paneles con "Pasaje bajo", "Cámara alta" y "Gran cámara", tanto con puertas comunes como con paredes completamente abiertas.
+- [x] Centralizar el cálculo de puertas en `datos/conexiones_mapa.gd`, compartido por editor y escena jugable, y añadir `pruebas/prueba_conexiones.gd`.
+- [ ] Ejecutar `pruebas/prueba_conexiones.gd` en Godot y confirmar `=== TODO OK ===`.
+- [ ] En el mapa guardado de seis módulos, confirmar en la salida `módulos: 6 · puertas: 7` y revisar que cada sala reciba sockets antes de construir sus paredes.
+- [x] Mostrar las conexiones en el editor (verde: puerta; celeste: pared abierta) y señalar salas superpuestas en rojo.
+- [x] Evitar nuevas superposiciones al mover salas con arrastre.
+- [x] Al cargar mapas, evitar autoguardados prematuros, conservar filas de tipos desconocidos y mostrar avisos de estado.
+- [x] Recibir la tecla R desde el nodo raíz para girar piezas.
 - [ ] Conectar salas circulares al perímetro curvo en el editor; sus salidas todavía requieren tratamiento específico.
 
 ## Criterios transversales
