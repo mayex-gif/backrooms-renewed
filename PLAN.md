@@ -107,13 +107,21 @@ es deliberadamente conservadora porque usa su cuadrado envolvente.
 - [x] Añadir paneles para diferencias de altura en puertas y paredes completamente abiertas entre salas del mapa personalizado.
 - [ ] Validar en Godot los paneles con "Pasaje bajo", "Cámara alta" y "Gran cámara", tanto con puertas comunes como con paredes completamente abiertas.
 - [x] Centralizar el cálculo de puertas en `datos/conexiones_mapa.gd`, compartido por editor y escena jugable, y añadir `pruebas/prueba_conexiones.gd`.
-- [ ] Ejecutar `pruebas/prueba_conexiones.gd` en Godot y confirmar `=== TODO OK ===`.
+- [x] Ejecutar `pruebas/prueba_conexiones.gd` en Godot y confirmar `=== TODO OK ===`.
 - [ ] En el mapa guardado de seis módulos, confirmar en la salida `módulos: 6 · puertas: 7` y revisar que cada sala reciba sockets antes de construir sus paredes.
 - [x] Mostrar las conexiones en el editor (verde: puerta; celeste: pared abierta) y señalar salas superpuestas en rojo.
 - [x] Evitar nuevas superposiciones al mover salas con arrastre.
 - [x] Al cargar mapas, evitar autoguardados prematuros, conservar filas de tipos desconocidos y mostrar avisos de estado.
 - [x] Recibir la tecla R desde el nodo raíz para girar piezas.
 - [ ] Conectar salas circulares al perímetro curvo en el editor; sus salidas todavía requieren tratamiento específico.
+- [x] Elegir el estado de cada conexión en el editor (click: puerta, abierta, cerrada; Mayús+click: automático) con ids estables de módulo, guardado en `conexiones` y uso en la escena jugable.
+- [x] Probar en Godot los cuatro estados por conexión (incluida abierta entre salas desalineadas y cerrada), confirmar `=== TODO OK ===` en `prueba_conexiones.gd` con `_prueba_estados`.
+- [x] Añadir pruebas del planificador de solapes y confirmar `=== TODO OK ===` en Godot.
+- [ ] Etapa 2: validar visualmente la superposición parcial de salas y la elección independiente de cada pared interior.
+- [ ] Validar visualmente que pisos, techos, vigas, placas y luces no se dupliquen y que prevalezca el techo más alto.
+- [ ] Validar visualmente solapes parciales, paredes abiertas y tabiques entre salas de distintas alturas.
+- [ ] Revisar apoyos para salas pequeñas totalmente abiertas cuando el editor 3D permita ubicar salas a distintas cotas.
+- [ ] Resolver los solapes de salas circulares respetando el perímetro curvo.
 
 ## Criterios transversales
 

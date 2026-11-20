@@ -5,6 +5,7 @@ extends EditorScript
 ## el editor de scripts y elegir Archivo > Ejecutar (Ctrl+Mayús+X).
 
 const ConexionesMapaScript = preload("res://datos/conexiones_mapa.gd")
+const PlanificadorSolapesScript = preload("res://datos/planificador_solapes.gd")
 
 var _fallos := 0
 
@@ -18,6 +19,8 @@ func _run() -> void:
 	_prueba_pared_completa()
 	_prueba_circulares_y_varias_salas()
 	_prueba_solapes()
+	_prueba_planificador_solapes()
+	_prueba_estados()
 	if _fallos == 0:
 		print("=== TODO OK ===")
 	else:
@@ -115,3 +118,49 @@ func _prueba_solapes() -> void:
 	_chequear(pares.size() == 1 and pares[0] == Vector2i(0, 1), "se detecta el par (0, 1) y se ignora la sala lejana")
 	var tocandose: Array[Dictionary] = [_m(0, 0, 5, 5), _m(5, 0, 5, 5)]
 	_chequear(ConexionesMapaScript.pares_solapados(tocandose).is_empty(), "tocarse por el borde no es superponerse")
+
+
+func _prueba_estados() -> void:
+	print("-- Estados por conexión")
+	var modulos: Array[Dictionary] = [_m(0, 0, 5, 5), _m(5, 0, 5, 5)]
+	var clave := ConexionesMapaScript.clave_de(0, 1)
+	_chequear(clave == "0:1" and ConexionesMapaScript.clave_de(1, 0) == "0:1", "la clave no depende del orden del par")
+	var auto := ConexionesMapaScript.calcular(modulos, false)
+	_chequear(auto[0].estado == "puerta" and not auto[0].manual, "sin elección ni opción global: puerta automática")
+	var abierta := ConexionesMapaScript.calcular(modulos, false, {clave: "abierta"})
+	_chequear(abierta[0].estado == "abierta" and abierta[0].manual and not abierta[0].completa and is_equal_approx(abierta[0].ancho, 5.0), "elegida abierta y alineada: tramo completo bajo el dintel")
+	var cerrada := ConexionesMapaScript.calcular(modulos, true, {clave: "cerrada"})
+	_chequear(cerrada.size() == 1 and cerrada[0].estado == "cerrada" and not cerrada[0].completa, "la elección manual gana a la opción global")
+	_chequear(ConexionesMapaScript.activas(cerrada).is_empty(), "las cerradas no se construyen")
+	var global_abierta := ConexionesMapaScript.calcular(modulos, true, {clave: "puerta"})
+	_chequear(global_abierta[0].estado == "puerta" and not global_abierta[0].completa, "puerta elegida a mano aunque la opción global abra paredes")
+	var desalineadas: Array[Dictionary] = [_m(0, 0, 5, 5), _m(5, 2, 5, 5)]
+	var d := ConexionesMapaScript.calcular(desalineadas, false, {clave: "abierta"})
+	_chequear(d[0].estado == "abierta" and not d[0].completa and is_equal_approx(d[0].ancho, 3.0), "abierta sin alinear: abre todo el tramo compartido")
+	var con_ids: Array[Dictionary] = [{"id": 7, "rect": Rect2(0, 0, 5, 5), "circular": false}, {"id": 3, "rect": Rect2(5, 0, 5, 5), "circular": false}]
+	var ci := ConexionesMapaScript.calcular(con_ids, false, {"3:7": "cerrada"})
+	_chequear(ci[0].clave == "3:7" and ci[0].estado == "cerrada", "los ids de módulo definen la clave")
+	_chequear(ConexionesMapaScript.siguiente_estado("puerta") == "abierta" and ConexionesMapaScript.siguiente_estado("abierta") == "cerrada" and ConexionesMapaScript.siguiente_estado("cerrada") == "interseccion" and ConexionesMapaScript.siguiente_estado("interseccion") == "puerta", "el click recorre los cuatro estados")
+
+func _prueba_planificador_solapes() -> void:
+	print("-- Paredes dentro de solapes")
+	var modulos: Array[Dictionary] = [
+		{"id": 10, "rect": Rect2(0, 0, 5, 5), "circular": false},
+		{"id": 20, "rect": Rect2(2, 2, 5, 5), "circular": false}
+	]
+	var plan := PlanificadorSolapesScript.calcular(modulos)
+	_chequear(plan.pares.size() == 1 and plan.segmentos.size() == 4, "solape 3x3 genera cuatro tramos interiores")
+	if plan.segmentos.size() == 4:
+		var clave: String = plan.segmentos[0].clave
+		var estados := {clave: true}
+		var plan_con_estado := PlanificadorSolapesScript.calcular(modulos, estados)
+		var abiertos := 0
+		for tramo in plan_con_estado.segmentos:
+			if tramo.abierta:
+				abiertos += 1
+		_chequear(abiertos == 1, "cada tramo interior conserva un estado independiente")
+	var con_circular: Array[Dictionary] = [
+		{"id": 10, "rect": Rect2(0, 0, 5, 5), "circular": false},
+		{"id": 30, "rect": Rect2(2, 2, 10, 10), "circular": true}
+	]
+	_chequear(PlanificadorSolapesScript.calcular(con_circular).pares.is_empty(), "los solapes circulares quedan excluidos")

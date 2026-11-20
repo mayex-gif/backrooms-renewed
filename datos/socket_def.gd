@@ -13,3 +13,5 @@ extends Resource
 @export var ancho: float = 2.5
 ## Abre toda la pared para que dos módulos se lean como un único espacio.
 @export var continuar_sala: bool = false
+## Omite también el dintel y deja libre todo el tramo del piso al techo.
+@export var sin_dintel: bool = false
