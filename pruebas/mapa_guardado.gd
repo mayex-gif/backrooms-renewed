@@ -78,8 +78,9 @@ func _ready() -> void:
 		exclusiones_piso[b].append(_rectangulo_local(zona, origenes[b], giros_salas[b]))
 		var alto_a := definiciones[a].alto_m
 		var alto_b := definiciones[b].alto_m
-		if is_equal_approx(alto_a, alto_b) and b > a:
-			exclusiones_techo[b].append(_rectangulo_local(zona, origenes[b], giros_salas[b]))
+		var indice_techo_recortado := PlanificadorSolapesScript.indice_techo_a_recortar(rectangulos[a], alto_a, rectangulos[b], alto_b, a, b)
+		if indice_techo_recortado >= 0:
+			exclusiones_techo[indice_techo_recortado].append(_rectangulo_local(zona, origenes[indice_techo_recortado], giros_salas[indice_techo_recortado]))
 	var todas: Array[Dictionary] = ConexionesMapaScript.calcular(modulos, _paredes_abiertas, estados)
 	# Las conexiones cerradas se quedan como pared: no se construye nada para ellas.
 	var conexiones: Array[Dictionary] = ConexionesMapaScript.activas(todas)

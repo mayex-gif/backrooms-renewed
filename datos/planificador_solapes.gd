@@ -90,6 +90,20 @@ static func altura_abertura_interseccion(alto_modulo: float, techos_vecinos: Arr
 		techo_vecino = maxf(techo_vecino, altura)
 	return minf(alto_modulo, techo_vecino)
 
+## Decide qué techo debe retirarse en una superposición anidada.
+## Un volumen más alto contenido en otro atraviesa el techo bajo del contenedor;
+## un pasaje bajo contenido en una sala alta conserva su propio cielorraso.
+static func indice_techo_a_recortar(rect_a: Rect2, alto_a: float, rect_b: Rect2, alto_b: float, indice_a: int, indice_b: int) -> int:
+	if is_equal_approx(alto_a, alto_b):
+		return indice_b
+	var a_contiene_b := rect_a.position.x <= rect_b.position.x + EPSILON and rect_a.position.y <= rect_b.position.y + EPSILON and rect_a.end.x >= rect_b.end.x - EPSILON and rect_a.end.y >= rect_b.end.y - EPSILON
+	var b_contiene_a := rect_b.position.x <= rect_a.position.x + EPSILON and rect_b.position.y <= rect_a.position.y + EPSILON and rect_b.end.x >= rect_a.end.x - EPSILON and rect_b.end.y >= rect_a.end.y - EPSILON
+	if a_contiene_b and alto_b > alto_a:
+		return indice_a
+	if b_contiene_a and alto_a > alto_b:
+		return indice_b
+	return -1
+
 static func _interseccion(a: Rect2, b: Rect2) -> Rect2:
 	var inicio := Vector2(maxf(a.position.x, b.position.x), maxf(a.position.y, b.position.y))
 	var fin := Vector2(minf(a.end.x, b.end.x), minf(a.end.y, b.end.y))
