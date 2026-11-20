@@ -59,15 +59,18 @@ con el recorrido previsto.
 ## Solapes en el editor de mapas
 
 El editor permite superponer salas rectangulares en pasos de 0,5 m. Cada
-segmento de pared que queda dentro de otra sala empieza como tabique; al hacer
-click se abre o se vuelve a cerrar de forma independiente. Las salas circulares
-siguen excluidas hasta poder recortar correctamente su perímetro curvo.
+segmento de pared que queda dentro de otra sala recorre de forma independiente
+los estados puerta, abertura con dintel, tabique y abertura completa. Las salas
+circulares siguen excluidas hasta poder recortar correctamente su perímetro
+curvo.
 
-El piso compartido queda a cargo de la primera sala del mapa. Para techos y
-luces se conserva la sala de mayor altura; si las alturas coinciden, vuelve a
-tener prioridad la primera. Las habitaciones siguen apoyadas en una cota de
-piso común. El soporte estructural de salas pequeñas completamente abiertas se
-revisará junto con el editor 3D y la colocación a distintas cotas.
+Con la cota de piso actual, el piso compartido queda a cargo de la primera sala
+del mapa. Los techos de distinta altura se conservan como niveles separados;
+solo se deduplican cuando coinciden en altura, priorizando la primera sala.
+Esta propiedad debe basarse en la cota de cada superficie cuando el editor
+permita niveles de piso distintos. El soporte estructural de salas pequeñas
+completamente abiertas se revisará junto con el editor 3D y la colocación a
+distintas cotas.
 
 ## Salas y techos
 

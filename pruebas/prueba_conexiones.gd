@@ -152,13 +152,14 @@ func _prueba_planificador_solapes() -> void:
 	_chequear(plan.pares.size() == 1 and plan.segmentos.size() == 4, "solape 3x3 genera cuatro tramos interiores")
 	if plan.segmentos.size() == 4:
 		var clave: String = plan.segmentos[0].clave
-		var estados := {clave: true}
+		var estados := {clave: ConexionesMapaScript.ESTADO_INTERSECCION}
 		var plan_con_estado := PlanificadorSolapesScript.calcular(modulos, estados)
 		var abiertos := 0
 		for tramo in plan_con_estado.segmentos:
 			if tramo.abierta:
 				abiertos += 1
 		_chequear(abiertos == 1, "cada tramo interior conserva un estado independiente")
+		_chequear(PlanificadorSolapesScript.siguiente_estado("puerta") == "abierta" and PlanificadorSolapesScript.siguiente_estado("abierta") == "cerrada" and PlanificadorSolapesScript.siguiente_estado("cerrada") == "interseccion", "cada pared interior recorre los cuatro estados")
 	var con_circular: Array[Dictionary] = [
 		{"id": 10, "rect": Rect2(0, 0, 5, 5), "circular": false},
 		{"id": 30, "rect": Rect2(2, 2, 10, 10), "circular": true}

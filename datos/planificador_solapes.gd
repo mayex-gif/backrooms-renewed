@@ -62,18 +62,24 @@ static func calcular(modulos: Array[Dictionary], estados: Dictionary = {}) -> Di
 						pared_repetida_por_anterior = true
 				var clave := _clave_segmento(modulos, indice, direccion, lateral_horizontal, tramo_desde, tramo_hasta)
 				if not parejas_internas.is_empty():
+					var estado_guardado: Variant = estados.get(clave, ConexionesMapa.ESTADO_CERRADA)
+					var estado := String(estado_guardado) if estado_guardado is String else (ConexionesMapa.ESTADO_INTERSECCION if bool(estado_guardado) else ConexionesMapa.ESTADO_CERRADA)
 					segmentos.append({
 						"modulo": indice,
 						"direccion": direccion,
 						"inicio": Vector2(tramo_desde, fijo) if lateral_horizontal else Vector2(fijo, tramo_desde),
 						"fin": Vector2(tramo_hasta, fijo) if lateral_horizontal else Vector2(fijo, tramo_hasta),
 						"clave": clave,
-						"abierta": bool(estados.get(clave, false)),
+						"estado": estado,
+						"abierta": estado == ConexionesMapa.ESTADO_ABIERTA or estado == ConexionesMapa.ESTADO_INTERSECCION,
 						"pares": parejas_internas
 					})
 				elif pared_repetida_por_anterior:
-					ocultos.append({"modulo": indice, "direccion": direccion, "inicio": Vector2(tramo_desde, fijo) if lateral_horizontal else Vector2(fijo, tramo_desde), "fin": Vector2(tramo_hasta, fijo) if lateral_horizontal else Vector2(fijo, tramo_hasta)})
+					ocultos.append({"modulo": indice, "direccion": direccion, "inicio": Vector2(tramo_desde, fijo) if lateral_horizontal else Vector2(fijo, tramo_desde), "fin": Vector2(tramo_hasta, fijo) if lateral_horizontal else Vector2(fijo, tramo_hasta), "estado": ConexionesMapa.ESTADO_INTERSECCION})
 	return {"pares": pares, "segmentos": segmentos, "ocultos": ocultos}
+
+static func siguiente_estado(estado: String) -> String:
+	return ConexionesMapa.siguiente_estado(estado)
 
 static func _interseccion(a: Rect2, b: Rect2) -> Rect2:
 	var inicio := Vector2(maxf(a.position.x, b.position.x), maxf(a.position.y, b.position.y))

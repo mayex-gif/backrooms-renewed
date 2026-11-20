@@ -82,7 +82,7 @@ func _crear_interfaz() -> void:
 	columna.add_child(_lienzo)
 	_estado = Label.new()
 	_estado.custom_minimum_size.y = 28
-	_estado.text = "Click: colocar/cambiar · arrastrar: mover sala · botón central: mover lienzo · botón derecho: borrar · rueda: zoom · verde: puerta · celeste: dintel · naranja: tabique/cerrada · violeta: pared abierta · círculo: sin solapes"
+	_estado.text = "Click: colocar/cambiar · arrastrar: mover sala · botón central: mover lienzo · botón derecho: borrar · rueda: zoom · verde: puerta · celeste: abierta con dintel · naranja: cerrada · violeta: abierta sin dintel · círculo: sin solapes"
 	columna.add_child(_estado)
 	_dialogo = FileDialog.new()
 	_dialogo.access = FileDialog.ACCESS_FILESYSTEM
@@ -285,8 +285,14 @@ func _entrada_lienzo(evento: InputEvent) -> void:
 			var punto_mapa := _punto_mapa(evento.position)
 			var clave_solape := _segmento_solape_en(punto_mapa)
 			if not clave_solape.is_empty():
-				_estados_solape[clave_solape] = not bool(_estados_solape.get(clave_solape, false))
-				_cambio_mapa("Tramo de intersección: %s." % ("abierto" if _estados_solape[clave_solape] else "tabique"))
+				var plan_actual: Dictionary = PlanificadorSolapesScript.calcular(_modulos_para_conexiones(), _estados_solape)
+				var actual := ConexionesMapaScript.ESTADO_CERRADA
+				for tramo in plan_actual.segmentos:
+					if tramo.clave == clave_solape:
+						actual = String(tramo.estado)
+				var nuevo := PlanificadorSolapesScript.siguiente_estado(actual)
+				_estados_solape[clave_solape] = nuevo
+				_cambio_mapa("Pared interior: %s." % nuevo)
 				return
 			var clave_conexion := _conexion_en(punto_mapa)
 			if not clave_conexion.is_empty():
@@ -440,7 +446,14 @@ func _dibujar() -> void:
 		var area: Rect2 = par.rect
 		_lienzo.draw_rect(Rect2(centro + area.position * _escala, area.size * _escala), Color(0.8, 0.2, 0.18, 0.18), true)
 	for segmento in plan_solapes.segmentos:
-		var color := Color(0.85, 0.55, 1.0) if segmento.abierta else Color(1.0, 0.58, 0.28)
+		var color := Color(0.55, 1.0, 0.55)
+		match String(segmento.estado):
+			ConexionesMapaScript.ESTADO_ABIERTA:
+				color = Color(0.55, 0.95, 1.0)
+			ConexionesMapaScript.ESTADO_CERRADA:
+				color = Color(1.0, 0.6, 0.2)
+			ConexionesMapaScript.ESTADO_INTERSECCION:
+				color = Color(0.85, 0.55, 1.0)
 		_lienzo.draw_line(centro + segmento.inicio * _escala, centro + segmento.fin * _escala, color, 6.0)
 
 func _segmento_solape_en(punto: Vector2) -> String:

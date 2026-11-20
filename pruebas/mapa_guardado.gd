@@ -78,10 +78,8 @@ func _ready() -> void:
 		exclusiones_piso[b].append(_rectangulo_local(zona, origenes[b], giros_salas[b]))
 		var alto_a := definiciones[a].alto_m
 		var alto_b := definiciones[b].alto_m
-		if alto_b < alto_a or (is_equal_approx(alto_a, alto_b) and b > a):
+		if is_equal_approx(alto_a, alto_b) and b > a:
 			exclusiones_techo[b].append(_rectangulo_local(zona, origenes[b], giros_salas[b]))
-		elif alto_a < alto_b:
-			exclusiones_techo[a].append(_rectangulo_local(zona, origenes[a], giros_salas[a]))
 	var todas: Array[Dictionary] = ConexionesMapaScript.calcular(modulos, _paredes_abiertas, estados)
 	# Las conexiones cerradas se quedan como pared: no se construye nada para ellas.
 	var conexiones: Array[Dictionary] = ConexionesMapaScript.activas(todas)
@@ -90,7 +88,7 @@ func _ready() -> void:
 		_agregar_puertas_pareadas(conexion, giros_salas, origenes, sockets_instancia)
 		_crear_piso_puente(conexion.punto_a, conexion.punto_b, conexion.ancho)
 	for segmento in plan_solapes.segmentos:
-		if segmento.abierta:
+		if String(segmento.estado) != ConexionesMapaScript.ESTADO_CERRADA:
 			_agregar_hueco_interseccion(segmento, giros_salas, origenes, sockets_instancia)
 	for segmento in plan_solapes.ocultos:
 		_agregar_hueco_interseccion(segmento, giros_salas, origenes, sockets_instancia)
@@ -191,8 +189,13 @@ func _agregar_hueco_interseccion(segmento: Dictionary, giros: Array[int], origen
 	var direccion: Direcciones.Dir = segmento.direccion
 	var socket := SocketDef.new()
 	socket.direccion = Direcciones.girar(direccion, -giros[indice])
-	socket.ancho = inicio.distance_to(fin)
-	socket.sin_dintel = true
+	var largo := inicio.distance_to(fin)
+	var estado := String(segmento.estado)
+	if estado == ConexionesMapaScript.ESTADO_PUERTA:
+		socket.ancho = minf(ConexionesMapaScript.PASO_MAXIMO, largo)
+	else:
+		socket.ancho = largo
+	socket.sin_dintel = estado == ConexionesMapaScript.ESTADO_INTERSECCION
 	socket.posicion_local = _punto_local((inicio + fin) * 0.5, origenes[indice], giros[indice])
 	sockets[indice].append(socket)
 
