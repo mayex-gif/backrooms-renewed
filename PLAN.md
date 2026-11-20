@@ -137,6 +137,8 @@ durante esta iteración.
 - [ ] Etapa 2: validar visualmente la superposición parcial de salas y la elección independiente de cada pared interior.
 - [ ] Validar visualmente que pisos, techos, vigas, placas y luces no se dupliquen y que prevalezca el techo más alto.
 - [ ] Validar visualmente solapes parciales, paredes abiertas y tabiques entre salas de distintas alturas.
+- [ ] Revisar en Godot el encastre a esquinas y huecos entre salas; el ajuste debe preferir contactos válidos y dejar los solapes deliberados disponibles.
+- [ ] Revisar en Godot que las caras superiores de pisos y placas se vean desde arriba, las inferiores desde abajo, y que las laterales cierren el espesor sin solapes visibles en las esquinas.
 - [ ] Revisar apoyos para salas pequeñas totalmente abiertas cuando el editor 3D permita ubicar salas a distintas cotas.
 - [ ] Revisar los solapes circulares mediante la misma representación poligonal compartida.
 

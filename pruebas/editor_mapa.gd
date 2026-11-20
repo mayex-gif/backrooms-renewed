@@ -399,8 +399,6 @@ func _centro_ajustado(deseado: Vector2, definicion: SalaDef, angulo_grados: floa
 		var otra: Dictionary = _salas[indice]
 		var definicion_otra := _catalogo[_indice_tipo(String(otra.tipo))]
 		var existentes := _vertices_sala(otra, definicion_otra, deg_to_rad(float(otra.angulo)))
-		if _poligonos_intersectan(nuevos, existentes):
-			return deseado # Un solape ya iniciado es intencional; no lo atraemos a una pared.
 		for i in nuevos.size():
 			var inicio_nuevo := nuevos[i]
 			var fin_nuevo := nuevos[(i + 1) % nuevos.size()]
@@ -426,11 +424,30 @@ func _centro_ajustado(deseado: Vector2, definicion: SalaDef, angulo_grados: floa
 					continue
 				var delta_t := clampf(0.0, desplazamiento_min, desplazamiento_max)
 				var candidato := deseado + normal * (plano_otro - plano_nuevo) + tangente * delta_t
+				var propuesta := _trasladar_poligono(nuevos, candidato - deseado)
+				var bloqueada := false
+				for k in _salas.size():
+					if k == ignorar or k == indice:
+						continue
+					var vecina: Dictionary = _salas[k]
+					var def_vecina := _catalogo[_indice_tipo(String(vecina.tipo))]
+					var huella_vecina := _vertices_sala(vecina, def_vecina, deg_to_rad(float(vecina.angulo)))
+					if _poligonos_intersectan(propuesta, huella_vecina):
+						bloqueada = true
+						break
+				if bloqueada:
+					continue
 				var distancia := candidato.distance_to(deseado)
 				if distancia < mejor_distancia:
 					mejor = candidato
 					mejor_distancia = distancia
 	return mejor
+
+func _trasladar_poligono(poligono: Array[Vector2], desplazamiento: Vector2) -> Array[Vector2]:
+	var trasladado: Array[Vector2] = []
+	for punto in poligono:
+		trasladado.append(punto + desplazamiento)
+	return trasladado
 
 func _rect_sala(sala: Dictionary) -> Rect2:
 	var indice := _indice_tipo(sala.tipo)

@@ -59,9 +59,9 @@ func _crear_pared_con_huecos(arista: int, huella: PackedVector2Array) -> void:
 	huecos = _unir_intervalos(huecos)
 	var cursor := 0.0
 	for hueco in huecos:
-		_crear_tramo_pared(inicio_arista, eje, cursor, hueco.x, "Pared")
+		_crear_tramo_pared(inicio_arista, eje, cursor, hueco.x, "Pared", is_zero_approx(cursor), false)
 		cursor = hueco.y
-	_crear_tramo_pared(inicio_arista, eje, cursor, largo_lado, "Pared")
+	_crear_tramo_pared(inicio_arista, eje, cursor, largo_lado, "Pared", is_zero_approx(cursor), true)
 	for socket in sockets_lado:
 		if socket.sin_dintel or socket.continuar_sala:
 			continue
@@ -98,11 +98,13 @@ func _restar_intervalos(base: Vector2, cortes: Array[Vector2]) -> Array[Vector2]
 		partes = nuevas
 	return partes
 
-func _crear_tramo_pared(inicio_arista: Vector2, eje: Vector2, desde: float, hasta: float, nombre: String) -> void:
+func _crear_tramo_pared(inicio_arista: Vector2, eje: Vector2, desde: float, hasta: float, nombre: String, extender_inicio: bool = false, extender_fin: bool = false) -> void:
 	if hasta - desde <= 0.01:
 		return
-	var punto := inicio_arista + eje * ((desde + hasta) * 0.5)
-	var cuerpo := _crear_caja(nombre, Vector3(hasta - desde, alto_m, 0.2), Vector3(punto.x, alto_m * 0.5, punto.y))
+	var extension_inicio := 0.1 if extender_inicio else 0.0
+	var extension_fin := 0.1 if extender_fin else 0.0
+	var punto := inicio_arista + eje * ((desde - extension_inicio + hasta + extension_fin) * 0.5)
+	var cuerpo := _crear_caja(nombre, Vector3(hasta - desde + extension_inicio + extension_fin, alto_m, 0.2), Vector3(punto.x, alto_m * 0.5, punto.y))
 	cuerpo.rotation.y = -atan2(eje.y, eje.x)
 
 func _crear_dintel(inicio_arista: Vector2, eje: Vector2, centro: float, ancho: float, altura_abertura: float = 2.45) -> void:
@@ -170,7 +172,9 @@ func _crear_prisma_poligonal(nombre: String, poligono: PackedVector2Array, centr
 		var a: Vector2 = poligono[indices[indice]]
 		var b: Vector2 = poligono[indices[indice + 1]]
 		var c: Vector2 = poligono[indices[indice + 2]]
-		if _cruz2d(b - a, c - a) > 0.0:
+		# Godot descarta las caras que no estén en sentido horario. Al proyectar
+		# desde arriba, un triángulo X/Z con cruz positiva queda horario.
+		if _cruz2d(b - a, c - a) < 0.0:
 			var temporal := b
 			b = c
 			c = temporal
@@ -290,10 +294,10 @@ func _crear_techo_modular() -> void:
 	_crear_superficie_poligonal("Plenum superior", _huella(), zonas_techo_excluidas, alto_m + 0.02, 0.2)
 	for x in range(columnas_tiles + 1):
 		var px := limites.position.x + x * tam_tile
-		_crear_viga_techo(GeometriaHuella.rectangulo(0.07, limites.size.y, Vector2(px, limites.get_center().y)), alto_m - 0.12)
+		_crear_viga_techo(GeometriaHuella.rectangulo(0.07, limites.size.y, Vector2(px, limites.get_center().y)), alto_m - 0.20)
 	for z in range(filas_tiles + 1):
 		var pz := limites.position.y + z * tam_tile
-		_crear_viga_techo(GeometriaHuella.rectangulo(limites.size.x, 0.07, Vector2(limites.get_center().x, pz)), alto_m - 0.12)
+		_crear_viga_techo(GeometriaHuella.rectangulo(limites.size.x, 0.07, Vector2(limites.get_center().x, pz)), alto_m - 0.20)
 	for x in columnas_tiles:
 		for z in filas_tiles:
 			var x0 := limites.position.x + x * tam_tile

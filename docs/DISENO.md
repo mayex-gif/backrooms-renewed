@@ -133,6 +133,12 @@ tiles; hay placas ausentes, desplazadas, quemadas o intermitentes. La sala
 circular usa la retícula común recortada por su huella. La
 geometría volvió a materiales por defecto, sin tintes ni texturas.
 
+Los pisos y las placas del techo se construyen como prismas cerrados: incluyen
+caras superiores, inferiores y laterales. El orden de vértices debe dejar cada
+cara visible desde su lado exterior con el descarte de caras de Godot. Las
+placas ausentes siguen siendo huecos intencionales del cielorraso, cubiertos
+por el plenum superior.
+
 La iluminación usa fluorescentes blancos con alcance local y un relleno
 ambiente suave. El `WorldEnvironment` activa SSAO, SSIL, SDFGI y Glow; F4 permite
 encender/apagar el ambiente y las luminarias y ajustar su intensidad. SSR sigue
