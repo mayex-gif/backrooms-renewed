@@ -54,7 +54,8 @@ func _crear_pared_con_huecos(direccion: int, sockets_lado: Array[SocketDef]) -> 
 		var inicio := clampf(_centro_lateral(socket) - socket.ancho * 0.5, 0.0, largo_lado)
 		var fin := clampf(_centro_lateral(socket) + socket.ancho * 0.5, 0.0, largo_lado)
 		for parte in _restar_intervalos(Vector2(inicio, fin), sin_dintel):
-			_crear_dintel(direccion, (parte.x + parte.y) * 0.5, parte.y - parte.x)
+			var altura_abertura := socket.altura_abertura_m if socket.altura_abertura_m > 0.0 else 2.45
+			_crear_dintel(direccion, (parte.x + parte.y) * 0.5, parte.y - parte.x, altura_abertura)
 
 func _unir_intervalos(intervalos: Array[Vector2]) -> Array[Vector2]:
 	intervalos.sort_custom(func(a: Vector2, b: Vector2) -> bool: return a.x < b.x)
@@ -98,8 +99,8 @@ func _crear_tramo_pared(direccion: int, desde: float, hasta: float, largo_lado: 
 		posicion = Vector3(0.0, alto_m * 0.5, centro)
 	_crear_caja(nombre, tamano, posicion)
 
-func _crear_dintel(direccion: int, centro: float, ancho: float) -> void:
-	var altura_puerta := minf(2.45, alto_m)
+func _crear_dintel(direccion: int, centro: float, ancho: float, altura_abertura: float = 2.45) -> void:
+	var altura_puerta := minf(altura_abertura, alto_m)
 	if alto_m <= altura_puerta:
 		return
 	var tamano := Vector3(ancho, alto_m - altura_puerta, 0.2)

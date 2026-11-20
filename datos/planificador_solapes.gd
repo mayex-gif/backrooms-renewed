@@ -81,6 +81,15 @@ static func calcular(modulos: Array[Dictionary], estados: Dictionary = {}) -> Di
 static func siguiente_estado(estado: String) -> String:
 	return ConexionesMapa.siguiente_estado(estado)
 
+## Limita una abertura completa al techo más alto de los módulos contiguos.
+static func altura_abertura_interseccion(alto_modulo: float, techos_vecinos: Array[float]) -> float:
+	if techos_vecinos.is_empty():
+		return alto_modulo
+	var techo_vecino := 0.0
+	for altura in techos_vecinos:
+		techo_vecino = maxf(techo_vecino, altura)
+	return minf(alto_modulo, techo_vecino)
+
 static func _interseccion(a: Rect2, b: Rect2) -> Rect2:
 	var inicio := Vector2(maxf(a.position.x, b.position.x), maxf(a.position.y, b.position.y))
 	var fin := Vector2(minf(a.end.x, b.end.x), minf(a.end.y, b.end.y))

@@ -15,3 +15,5 @@ extends Resource
 @export var continuar_sala: bool = false
 ## Omite también el dintel y deja libre todo el tramo del piso al techo.
 @export var sin_dintel: bool = false
+## Altura máxima libre del hueco. Un valor negativo usa la altura estándar de puerta.
+@export var altura_abertura_m: float = -1.0

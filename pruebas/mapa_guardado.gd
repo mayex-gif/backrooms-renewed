@@ -89,9 +89,9 @@ func _ready() -> void:
 		_crear_piso_puente(conexion.punto_a, conexion.punto_b, conexion.ancho)
 	for segmento in plan_solapes.segmentos:
 		if String(segmento.estado) != ConexionesMapaScript.ESTADO_CERRADA:
-			_agregar_hueco_interseccion(segmento, giros_salas, origenes, sockets_instancia)
+			_agregar_hueco_interseccion(segmento, definiciones, giros_salas, origenes, sockets_instancia)
 	for segmento in plan_solapes.ocultos:
-		_agregar_hueco_interseccion(segmento, giros_salas, origenes, sockets_instancia)
+		_agregar_hueco_interseccion(segmento, definiciones, giros_salas, origenes, sockets_instancia)
 	for i in definiciones.size():
 		var definicion := definiciones[i]
 		var instancia := definicion.escena.instantiate() as Node3D
@@ -182,7 +182,7 @@ func _crear_lista_sockets() -> Array[SocketDef]:
 	var sockets: Array[SocketDef] = []
 	return sockets
 
-func _agregar_hueco_interseccion(segmento: Dictionary, giros: Array[int], origenes: Array[Vector3], sockets: Array[Array]) -> void:
+func _agregar_hueco_interseccion(segmento: Dictionary, definiciones: Array[SalaDef], giros: Array[int], origenes: Array[Vector3], sockets: Array[Array]) -> void:
 	var indice: int = segmento.modulo
 	var inicio: Vector2 = segmento.inicio
 	var fin: Vector2 = segmento.fin
@@ -195,7 +195,18 @@ func _agregar_hueco_interseccion(segmento: Dictionary, giros: Array[int], origen
 		socket.ancho = minf(ConexionesMapaScript.PASO_MAXIMO, largo)
 	else:
 		socket.ancho = largo
-	socket.sin_dintel = estado == ConexionesMapaScript.ESTADO_INTERSECCION
+	if estado == ConexionesMapaScript.ESTADO_INTERSECCION:
+		var pares: Array = segmento.get("pares", [])
+		if pares.is_empty():
+			socket.sin_dintel = true
+		else:
+			var techos_solapados: Array[float] = []
+			for otro_indice in pares:
+				techos_solapados.append(definiciones[int(otro_indice)].alto_m)
+			socket.altura_abertura_m = PlanificadorSolapesScript.altura_abertura_interseccion(definiciones[indice].alto_m, techos_solapados)
+			socket.sin_dintel = socket.altura_abertura_m >= definiciones[indice].alto_m - 0.001
+	else:
+		socket.sin_dintel = false
 	socket.posicion_local = _punto_local((inicio + fin) * 0.5, origenes[indice], giros[indice])
 	sockets[indice].append(socket)
 

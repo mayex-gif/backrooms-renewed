@@ -62,7 +62,9 @@ El editor permite superponer salas rectangulares en pasos de 0,5 m. Cada
 segmento de pared que queda dentro de otra sala recorre de forma independiente
 los estados puerta, abertura con dintel, tabique y abertura completa. Las salas
 circulares siguen excluidas hasta poder recortar correctamente su perímetro
-curvo.
+curvo. La abertura completa llega como máximo al techo más alto de las salas
+que ocupan el otro lado del muro; si el módulo actual es más alto, conserva el
+paño superior hasta su propio techo.
 
 Con la cota de piso actual, el piso compartido queda a cargo de la primera sala
 del mapa. Los techos de distinta altura se conservan como niveles separados;
