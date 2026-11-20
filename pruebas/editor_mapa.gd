@@ -7,21 +7,22 @@ const PlanificadorSolapesScript = preload("res://datos/planificador_solapes.gd")
 var _catalogo: Array[SalaDef] = []
 var _salas: Array[Dictionary] = []
 var _seleccion := 0
-var _giros := 0
+var _angulo_seleccion := 0.0
 var _escala := 24.0
 var _desplazamiento_vista := Vector2.ZERO
 var _lienzo: Control
 var _selector: OptionButton
 var _estado: Label
+var _rotacion_visible: Label
 var _dialogo: FileDialog
+var _dialogo_salida: ConfirmationDialog
 var _ruta_actual := "user://saves/mapa_actual.json"
 var _lista_guardados: OptionButton
 var _arrastre := -1
+var _seleccion_sala := -1
 var _desfase_arrastre := Vector2.ZERO
 var _paneo_activo := false
 var _ultima_posicion_paneo := Vector2.ZERO
-var _paredes_abiertas := false
-var _check_paredes: CheckButton
 ## Módulos del archivo cuyo tipo ya no existe en el catálogo. Se conservan tal
 ## cual para que el autoguardado no los borre del JSON.
 var _desconocidas: Array = []
@@ -32,6 +33,7 @@ var _estados_conexion: Dictionary = {}
 ## Estado por tramo interior superpuesto: true lo abre, false lo conserva como tabique.
 var _estados_solape: Dictionary = {}
 var _siguiente_id := 0
+var _hay_cambios := false
 
 func _ready() -> void:
 	var script_catalogo: Script = load("res://salas/catalogo_salas.gd")
@@ -47,33 +49,37 @@ func _crear_interfaz() -> void:
 	var columna := VBoxContainer.new()
 	columna.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	add_child(columna)
-	var barra := HBoxContainer.new()
-	barra.custom_minimum_size.y = 48
+	var barra := HFlowContainer.new()
+	barra.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	columna.add_child(barra)
 	_selector = OptionButton.new()
 	_selector.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	for definicion in _catalogo:
 		_selector.add_item("%s  (%.1f × %.1f m)" % [definicion.nombre, definicion.ancho_m, definicion.largo_m])
-	_selector.item_selected.connect(func(indice: int) -> void: _seleccion = indice)
+	_selector.item_selected.connect(func(indice: int) -> void:
+		_seleccion = indice
+		_seleccion_sala = -1
+		_actualizar_rotacion_visible()
+		_lienzo.queue_redraw()
+	)
 	barra.add_child(_selector)
-	_agregar_boton(barra, "Girar", _girar)
-	_agregar_boton(barra, "Guardar", _guardar_actual)
+	_agregar_boton(barra, "Pieza −5°", func() -> void: _girar_pieza(-5.0))
+	_agregar_boton(barra, "Pieza +5°", func() -> void: _girar_pieza(5.0))
+	_agregar_boton(barra, "Sala −5°", func() -> void: _girar_sala(-5.0))
+	_agregar_boton(barra, "Sala +5°", func() -> void: _girar_sala(5.0))
+	_rotacion_visible = Label.new()
+	_rotacion_visible.custom_minimum_size.x = 170
+	barra.add_child(_rotacion_visible)
+	_actualizar_rotacion_visible()
+	_agregar_boton(barra, "Guardar", func() -> void: _guardar_actual(true))
 	_agregar_boton(barra, "Guardar como", _abrir_guardar)
 	_agregar_boton(barra, "Jugar", _jugar)
 	_agregar_boton(barra, "Cargar", _abrir_cargar)
 	_lista_guardados = OptionButton.new()
 	_lista_guardados.item_selected.connect(_seleccionar_guardado)
 	barra.add_child(_lista_guardados)
-	_check_paredes = CheckButton.new()
-	_check_paredes.text = "Pared completa abierta"
-	_check_paredes.toggled.connect(func(activo: bool) -> void:
-		_paredes_abiertas = activo
-		_guardar_actual()
-		_lienzo.queue_redraw()
-	)
-	barra.add_child(_check_paredes)
 	_agregar_boton(barra, "Limpiar", _limpiar)
-	_agregar_boton(barra, "Volver", func() -> void: get_tree().change_scene_to_file("res://pruebas/menu_principal.tscn"))
+	_agregar_boton(barra, "Volver", _solicitar_salir)
 	_lienzo = Control.new()
 	_lienzo.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	_lienzo.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -82,8 +88,18 @@ func _crear_interfaz() -> void:
 	columna.add_child(_lienzo)
 	_estado = Label.new()
 	_estado.custom_minimum_size.y = 28
-	_estado.text = "Click: colocar/cambiar · arrastrar: mover sala · botón central: mover lienzo · botón derecho: borrar · rueda: zoom · verde: puerta · celeste: abierta con dintel · naranja: cerrada · violeta: abierta sin dintel · círculo: sin solapes"
+	_estado.text = "Click: colocar/cambiar · arrastrar: mover sala · R/Mayús+R: girar ±5° · botón central: mover lienzo · rueda: zoom · clic derecho: borrar · Escape: salir"
+	_estado.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_estado.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	columna.add_child(_estado)
+	_dialogo_salida = ConfirmationDialog.new()
+	_dialogo_salida.title = "Salir del editor"
+	_dialogo_salida.dialog_text = "Hay cambios en el mapa. ¿Querés guardar y salir? Los cambios también se autoguardan en mapa_actual.json."
+	_dialogo_salida.ok_button_text = "Guardar y salir"
+	_dialogo_salida.add_button("Salir", true, "salir")
+	_dialogo_salida.confirmed.connect(_guardar_y_salir)
+	_dialogo_salida.custom_action.connect(_accion_salida)
+	add_child(_dialogo_salida)
 	_dialogo = FileDialog.new()
 	_dialogo.access = FileDialog.ACCESS_FILESYSTEM
 	_dialogo.add_filter("*.json", "Mapa JSON")
@@ -91,18 +107,39 @@ func _crear_interfaz() -> void:
 	_dialogo.file_selected.connect(_archivo_elegido)
 	_actualizar_guardados()
 
-func _agregar_boton(barra: HBoxContainer, texto: String, accion: Callable) -> void:
+func _agregar_boton(barra: Container, texto: String, accion: Callable) -> void:
 	var boton := Button.new()
 	boton.text = texto
 	boton.pressed.connect(accion)
 	barra.add_child(boton)
 
-func _girar() -> void:
-	_giros = posmod(_giros + 1, 4)
-	_estado.text = "Giro seleccionado: %d°" % (_giros * 90)
+func _girar_pieza(delta: float) -> void:
+	_angulo_seleccion = fposmod(_angulo_seleccion + delta, 360.0)
+	_actualizar_rotacion_visible()
+	_lienzo.queue_redraw()
+
+func _girar_sala(delta: float) -> void:
+	if _seleccion_sala < 0 or _seleccion_sala >= _salas.size():
+		_estado.text = "Seleccioná una sala para girarla."
+		return
+	var propuesta: Dictionary = _salas[_seleccion_sala].duplicate()
+	propuesta.angulo = fposmod(float(propuesta.angulo) + delta, 360.0)
+	_salas[_seleccion_sala].angulo = propuesta.angulo
+	_actualizar_rotacion_visible()
+	_cambio_mapa("Sala girada a %.0f°." % float(propuesta.angulo))
+
+func _actualizar_rotacion_visible() -> void:
+	if _rotacion_visible == null:
+		return
+	if _seleccion_sala >= 0 and _seleccion_sala < _salas.size():
+		_rotacion_visible.text = "Sala: %.0f° · Pieza: %.0f°" % [float(_salas[_seleccion_sala].angulo), _angulo_seleccion]
+	else:
+		_rotacion_visible.text = "Pieza: %.0f°" % _angulo_seleccion
 
 func _limpiar() -> void:
 	_salas.clear()
+	_seleccion_sala = -1
+	_actualizar_rotacion_visible()
 	_desconocidas.clear()
 	_estados_conexion.clear()
 	_estados_solape.clear()
@@ -126,6 +163,7 @@ func _archivo_elegido(ruta: String) -> void:
 			return
 		archivo.store_string(_serializar())
 		_ruta_actual = ruta
+		_hay_cambios = false
 		_estado.text = "Mapa guardado: %s" % ruta
 		_actualizar_guardados()
 	else:
@@ -133,21 +171,23 @@ func _archivo_elegido(ruta: String) -> void:
 	_lienzo.queue_redraw()
 	_actualizar_guardados()
 
-func _guardar_actual() -> void:
+func _guardar_actual(marcar_guardado: bool = false) -> void:
 	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path("user://saves"))
 	var archivo := FileAccess.open(_ruta_actual, FileAccess.WRITE)
 	if archivo == null:
 		_estado.text = "No se pudo guardar el mapa."
 		return
 	archivo.store_string(_serializar())
+	if marcar_guardado:
+		_hay_cambios = false
 	_estado.text = "Guardado: %s" % _ruta_actual.get_file()
 	_actualizar_guardados()
 
 ## Texto JSON del mapa actual. Conserva los módulos de tipo desconocido.
 func _serializar() -> String:
-	var filas: Array = _salas.map(func(s: Dictionary) -> Dictionary: return {"id": s.id, "tipo": s.tipo, "x": s.x, "z": s.z, "giros": s.giros})
+	var filas: Array = _salas.map(func(s: Dictionary) -> Dictionary: return {"id": s.id, "tipo": s.tipo, "x": s.x, "z": s.z, "angulo": s.angulo})
 	filas.append_array(_desconocidas)
-	return JSON.stringify({"version": 3, "paredes_abiertas": _paredes_abiertas, "conexiones": _estados_conexion, "solapes": _estados_solape, "salas": filas}, "\t")
+	return JSON.stringify({"version": 4, "conexiones": _estados_conexion, "solapes": _estados_solape, "salas": filas}, "\t")
 
 func _actualizar_guardados() -> void:
 	if _lista_guardados == null:
@@ -184,7 +224,6 @@ func _cargar_ruta(ruta: String) -> void:
 	_desconocidas.clear()
 	_estados_conexion.clear()
 	_estados_solape.clear()
-	_paredes_abiertas = bool(datos.get("paredes_abiertas", false))
 	var estados_guardados: Variant = datos.get("conexiones", {})
 	if estados_guardados is Dictionary:
 		for clave in estados_guardados:
@@ -193,9 +232,6 @@ func _cargar_ruta(ruta: String) -> void:
 	var solapes_guardados: Variant = datos.get("solapes", {})
 	if solapes_guardados is Dictionary:
 		_estados_solape = solapes_guardados.duplicate()
-	# Sin señal: si no, el CheckButton dispara _guardar_actual() con la lista de
-	# salas vacía y pisa el archivo que estaba abierto antes de este.
-	_check_paredes.set_pressed_no_signal(_paredes_abiertas)
 	# Los mapas viejos no traen "id": se usa la posición de la fila en el archivo
 	# (mapa_guardado.gd aplica la misma regla).
 	_siguiente_id = 0
@@ -206,7 +242,15 @@ func _cargar_ruta(ruta: String) -> void:
 		var tipo_original := String(fila.get("tipo", ""))
 		var tipo := String(_alias_tipos.get(tipo_original, tipo_original))
 		if _indice_tipo(tipo) >= 0:
-			_salas.append({"id": id_fila, "tipo": tipo, "x": float(fila.x), "z": float(fila.z), "giros": int(fila.giros)})
+			var definicion := _catalogo[_indice_tipo(tipo)]
+			var angulo := float(fila.get("angulo", int(fila.get("giros", 0)) * 90))
+			var centro := Vector2(float(fila.x), float(fila.z))
+			if not fila.has("angulo"):
+				var cuarto := posmod(int(fila.get("giros", 0)), 4)
+				var ancho := definicion.ancho_m if cuarto % 2 == 0 else definicion.largo_m
+				var largo := definicion.largo_m if cuarto % 2 == 0 else definicion.ancho_m
+				centro += Vector2(ancho, largo) * 0.5
+			_salas.append({"id": id_fila, "tipo": tipo, "x": centro.x, "z": centro.y, "angulo": angulo})
 		else:
 			_desconocidas.append(fila)
 		posicion_fila += 1
@@ -216,39 +260,37 @@ func _cargar_ruta(ruta: String) -> void:
 		aviso += " · %d módulos de un tipo que ya no existe se conservan sin mostrarse" % _desconocidas.size()
 	var modulos_cargados := _modulos_para_conexiones()
 	var pares_solape := ConexionesMapaScript.pares_solapados(modulos_cargados)
-	var solapes := pares_solape.size()
-	if solapes > 0:
-		aviso += " · %d pares de salas superpuestas (en rojo)" % solapes
-	var circulares_solapadas := 0
-	for par in pares_solape:
-		if modulos_cargados[par.x].circular or modulos_cargados[par.y].circular:
-			circulares_solapadas += 1
-	if circulares_solapadas > 0:
-		aviso += " · las salas circulares superpuestas no se recortan en esta etapa"
-	_cambio_mapa("")
-	# _cambio_mapa guarda y deja "Guardado: ..." en la barra; el aviso va después.
+	if not pares_solape.is_empty():
+		aviso += " · %d pares de salas se superponen; revisá sus paredes interiores" % pares_solape.size()
+	_guardar_actual()
+	_hay_cambios = false
 	_estado.text = "Mapa cargado para editar: %s%s" % [ruta.get_file(), aviso]
+	_actualizar_rotacion_visible()
 
 func _jugar() -> void:
-	_guardar_actual()
+	_guardar_actual(true)
 	get_tree().change_scene_to_file("res://pruebas/mapa_guardado.tscn")
+
+func _solicitar_salir() -> void:
+	if _hay_cambios:
+		_dialogo_salida.popup_centered()
+	else:
+		get_tree().change_scene_to_file("res://pruebas/menu_principal.tscn")
+
+func _guardar_y_salir() -> void:
+	_guardar_actual(true)
+	get_tree().change_scene_to_file("res://pruebas/menu_principal.tscn")
+
+func _accion_salida(accion: StringName) -> void:
+	if accion == "salir":
+		# El mapa actual ya fue autoguardado en user://saves.
+		get_tree().change_scene_to_file("res://pruebas/menu_principal.tscn")
 
 func _indice_tipo(nombre: String) -> int:
 	for i in _catalogo.size():
 		if _catalogo[i].nombre == nombre:
 			return i
 	return -1
-
-func _hay_solape_con_circular(rect: Rect2, ignorar: int, sala_nueva_circular: bool = false) -> bool:
-	for i in _salas.size():
-		if i == ignorar:
-			continue
-		var existente := _rect_sala(_salas[i])
-		if not rect.intersects(existente, false):
-			continue
-		if sala_nueva_circular or _es_circular(_catalogo[_indice_tipo(_salas[i].tipo)]):
-			return true
-	return false
 
 func _entrada_lienzo(evento: InputEvent) -> void:
 	if evento is InputEventMouseMotion:
@@ -257,16 +299,12 @@ func _entrada_lienzo(evento: InputEvent) -> void:
 			_ultima_posicion_paneo = evento.position
 			_lienzo.queue_redraw()
 		elif _arrastre >= 0:
-			var deseado := (_punto_mapa(evento.position) - _desfase_arrastre).snapped(Vector2(0.5, 0.5))
-			var tamano := _rect_sala(_salas[_arrastre]).size
-			var p := deseado
-			var tipo_arrastrado := String(_salas[_arrastre].tipo)
-			var es_circular_arrastrada := _es_circular(_catalogo[_indice_tipo(tipo_arrastrado)])
-			if _hay_solape_con_circular(Rect2(p, tamano), _arrastre, es_circular_arrastrada):
-				_estado.text = "Las salas circulares no se pueden superponer en esta etapa."
-			else:
-				_salas[_arrastre].x = p.x
-				_salas[_arrastre].z = p.y
+			var centro_deseado := (_punto_mapa(evento.position) - _desfase_arrastre).snapped(Vector2(0.5, 0.5))
+			var propuesta: Dictionary = _salas[_arrastre].duplicate()
+			var definicion := _catalogo[_indice_tipo(String(propuesta.tipo))]
+			var centro_ajustado := _centro_ajustado(centro_deseado, definicion, float(propuesta.angulo), _arrastre)
+			_salas[_arrastre].x = centro_ajustado.x
+			_salas[_arrastre].z = centro_ajustado.y
 			_lienzo.queue_redraw()
 	elif evento is InputEventMouseButton:
 		if evento.button_index == MOUSE_BUTTON_MIDDLE and evento.pressed:
@@ -276,6 +314,7 @@ func _entrada_lienzo(evento: InputEvent) -> void:
 			_paneo_activo = false
 		elif evento.button_index == MOUSE_BUTTON_LEFT and not evento.pressed and _arrastre >= 0:
 			_arrastre = -1
+			_hay_cambios = true
 			_guardar_actual()
 		elif evento.pressed and evento.button_index == MOUSE_BUTTON_WHEEL_UP:
 			_escala = minf(60.0, _escala * 1.15)
@@ -300,9 +339,12 @@ func _entrada_lienzo(evento: InputEvent) -> void:
 				return
 			_arrastre = _indice_sala_en(punto_mapa)
 			if _arrastre >= 0:
-				var r := _rect_sala(_salas[_arrastre])
-				_desfase_arrastre = _punto_mapa(evento.position) - r.position
+				_seleccion_sala = _arrastre
+				_actualizar_rotacion_visible()
+				_desfase_arrastre = _punto_mapa(evento.position) - Vector2(_salas[_arrastre].x, _salas[_arrastre].z)
 			else:
+				_seleccion_sala = -1
+				_actualizar_rotacion_visible()
 				_colocar(evento.position)
 		elif evento.pressed and evento.button_index == MOUSE_BUTTON_RIGHT:
 			_borrar(evento.position)
@@ -313,49 +355,144 @@ func _entrada_lienzo(evento: InputEvent) -> void:
 func _unhandled_key_input(evento: InputEvent) -> void:
 	var tecla := evento as InputEventKey
 	if tecla != null and tecla.pressed and not tecla.echo and tecla.keycode == KEY_R:
-		_girar()
 		get_viewport().set_input_as_handled()
-
-func _es_circular(definicion: SalaDef) -> bool:
-	return definicion.escena != null and definicion.escena.resource_path.ends_with("sala_circular.tscn")
+		var delta := -5.0 if tecla.shift_pressed else 5.0
+		if _seleccion_sala >= 0 and _seleccion_sala < _salas.size():
+			_girar_sala(delta)
+		else:
+			_girar_pieza(delta)
+	elif tecla != null and tecla.pressed and not tecla.echo and tecla.keycode == KEY_ESCAPE:
+		get_viewport().set_input_as_handled()
+		_solicitar_salir()
 
 ## Datos mínimos de cada sala para ConexionesMapa (el mismo cálculo que usa la escena jugable).
 func _modulos_para_conexiones() -> Array[Dictionary]:
 	var modulos: Array[Dictionary] = []
 	for sala in _salas:
-		modulos.append({"id": sala.id, "rect": _rect_sala(sala), "circular": _es_circular(_catalogo[_indice_tipo(sala.tipo)])})
+		var definicion := _catalogo[_indice_tipo(sala.tipo)]
+		var angulo := deg_to_rad(float(sala.get("angulo", 0.0)))
+		modulos.append({"id": sala.id, "rect": _rect_sala(sala), "centro": Vector2(sala.x, sala.z), "ancho": definicion.ancho_m, "largo": definicion.largo_m, "angulo": angulo, "poligono": PackedVector2Array(_vertices_sala(sala, definicion, angulo))})
 	return modulos
 
 func _colocar(posicion: Vector2) -> void:
 	var definicion := _catalogo[_seleccion]
-	var ancho := definicion.ancho_m if _giros % 2 == 0 else definicion.largo_m
-	var largo := definicion.largo_m if _giros % 2 == 0 else definicion.ancho_m
-	var deseado := (_punto_mapa(posicion) - Vector2(ancho, largo) * 0.5).snapped(Vector2(0.5, 0.5))
-	var origen := deseado
-	var rect := Rect2(origen, Vector2(ancho, largo))
-	if _hay_solape_con_circular(rect, -1, _es_circular(definicion)):
-		_estado.text = "Las salas circulares no se pueden superponer en esta etapa."
-		return
+	var centro_deseado := _punto_mapa(posicion).snapped(Vector2(0.5, 0.5))
+	var centro := _centro_ajustado(centro_deseado, definicion, _angulo_seleccion, -1)
+	var nueva := {"tipo": definicion.nombre, "x": centro.x, "z": centro.y, "angulo": _angulo_seleccion}
 	var id_nuevo := _siguiente_id
 	_siguiente_id += 1
-	_salas.append({"id": id_nuevo, "tipo": definicion.nombre, "x": origen.x, "z": origen.y, "giros": _giros})
-	_cambio_mapa("Sala colocada en (%.1f, %.1f)." % [origen.x, origen.y])
+	nueva["id"] = id_nuevo
+	_salas.append(nueva)
+	_seleccion_sala = _salas.size() - 1
+	_actualizar_rotacion_visible()
+	_cambio_mapa("Sala colocada en (%.1f, %.1f), giro %.0f°." % [centro.x, centro.y, _angulo_seleccion])
+
+## Ajusta cualquier par de aristas opuestas usando su normal y tangente.
+func _centro_ajustado(deseado: Vector2, definicion: SalaDef, angulo_grados: float, ignorar: int) -> Vector2:
+	const ALCANCE_AJUSTE := 1.25
+	var nuevos := _vertices_sala({"x": deseado.x, "z": deseado.y}, definicion, deg_to_rad(angulo_grados))
+	var mejor := deseado
+	var mejor_distancia := ALCANCE_AJUSTE
+	for indice in _salas.size():
+		if indice == ignorar:
+			continue
+		var otra: Dictionary = _salas[indice]
+		var definicion_otra := _catalogo[_indice_tipo(String(otra.tipo))]
+		var existentes := _vertices_sala(otra, definicion_otra, deg_to_rad(float(otra.angulo)))
+		if _poligonos_intersectan(nuevos, existentes):
+			return deseado # Un solape ya iniciado es intencional; no lo atraemos a una pared.
+		for i in nuevos.size():
+			var inicio_nuevo := nuevos[i]
+			var fin_nuevo := nuevos[(i + 1) % nuevos.size()]
+			var eje_nuevo := (fin_nuevo - inicio_nuevo).normalized()
+			var normal := Vector2(eje_nuevo.y, -eje_nuevo.x)
+			var tangente := eje_nuevo
+			var plano_nuevo := inicio_nuevo.dot(normal)
+			var nuevo_min := minf(inicio_nuevo.dot(tangente), fin_nuevo.dot(tangente))
+			var nuevo_max := maxf(inicio_nuevo.dot(tangente), fin_nuevo.dot(tangente))
+			for j in existentes.size():
+				var inicio_otro := existentes[j]
+				var fin_otro := existentes[(j + 1) % existentes.size()]
+				var eje_otro := (fin_otro - inicio_otro).normalized()
+				var normal_otro := Vector2(eje_otro.y, -eje_otro.x)
+				if normal.dot(normal_otro) > -0.999:
+					continue
+				var plano_otro := inicio_otro.dot(normal)
+				var otro_min := minf(inicio_otro.dot(tangente), fin_otro.dot(tangente))
+				var otro_max := maxf(inicio_otro.dot(tangente), fin_otro.dot(tangente))
+				var desplazamiento_min := otro_min + ConexionesMapaScript.PASO_MINIMO - nuevo_max
+				var desplazamiento_max := otro_max - ConexionesMapaScript.PASO_MINIMO - nuevo_min
+				if desplazamiento_min > desplazamiento_max:
+					continue
+				var delta_t := clampf(0.0, desplazamiento_min, desplazamiento_max)
+				var candidato := deseado + normal * (plano_otro - plano_nuevo) + tangente * delta_t
+				var distancia := candidato.distance_to(deseado)
+				if distancia < mejor_distancia:
+					mejor = candidato
+					mejor_distancia = distancia
+	return mejor
 
 func _rect_sala(sala: Dictionary) -> Rect2:
 	var indice := _indice_tipo(sala.tipo)
 	var definicion := _catalogo[indice]
-	var ancho := definicion.ancho_m if int(sala.giros) % 2 == 0 else definicion.largo_m
-	var largo := definicion.largo_m if int(sala.giros) % 2 == 0 else definicion.ancho_m
-	return Rect2(Vector2(sala.x, sala.z), Vector2(ancho, largo))
+	var angulo := deg_to_rad(float(sala.get("angulo", int(sala.get("giros", 0)) * 90)))
+	var puntos := _vertices_sala(sala, definicion, angulo)
+	var min_x := puntos[0].x
+	var max_x := puntos[0].x
+	var min_y := puntos[0].y
+	var max_y := puntos[0].y
+	for p in puntos:
+		min_x = minf(min_x, p.x)
+		max_x = maxf(max_x, p.x)
+		min_y = minf(min_y, p.y)
+		max_y = maxf(max_y, p.y)
+	return Rect2(Vector2(min_x, min_y), Vector2(max_x - min_x, max_y - min_y))
+
+func _vertices_sala(sala: Dictionary, definicion: SalaDef, angulo: float) -> Array[Vector2]:
+	var centro := Vector2(float(sala.x), float(sala.z))
+	var huella := definicion.obtener_huella_local()
+	var centro_local := GeometriaHuella.limites(huella).get_center()
+	var puntos: Array[Vector2] = []
+	for local in huella:
+		puntos.append(centro + (local - centro_local).rotated(angulo))
+	return puntos
+
+func _poligonos_intersectan(a: Array[Vector2], b: Array[Vector2]) -> bool:
+	for poligono in [a, b]:
+		for i in poligono.size():
+			var eje: Vector2 = (poligono[(i + 1) % poligono.size()] - poligono[i]).orthogonal().normalized()
+			var proy_a := _proyectar_poligono(a, eje)
+			var proy_b := _proyectar_poligono(b, eje)
+			if proy_a.y <= proy_b.x + 0.001 or proy_b.y <= proy_a.x + 0.001:
+				return false
+	return true
+
+func _proyectar_poligono(puntos: Array[Vector2], eje: Vector2) -> Vector2:
+	var minimo := puntos[0].dot(eje)
+	var maximo := minimo
+	for punto in puntos:
+		minimo = minf(minimo, punto.dot(eje))
+		maximo = maxf(maximo, punto.dot(eje))
+	return Vector2(minimo, maximo)
+
+func _distancia_punto_poligono(punto: Vector2, vertices: Array[Vector2]) -> float:
+	var dentro := false
+	for i in vertices.size():
+		var a := vertices[i]
+		var b := vertices[(i + 1) % vertices.size()]
+		if Geometry2D.get_closest_point_to_segment(punto, a, b).distance_to(punto) <= 0.001:
+			return 0.0
+		if ((a.y > punto.y) != (b.y > punto.y)) and punto.x < (b.x - a.x) * (punto.y - a.y) / (b.y - a.y) + a.x:
+			dentro = not dentro
+	return 0.0 if dentro else INF
 
 ## Clave de la conexión cuya marca está cerca de un punto del mapa ("" si no hay).
 func _conexion_en(punto: Vector2) -> String:
 	var cercana := ""
 	var mejor := 0.7
-	for conexion in ConexionesMapaScript.calcular(_modulos_para_conexiones(), _paredes_abiertas, _estados_conexion):
-		var vertical: bool = conexion.dir_a == Direcciones.Dir.ESTE or conexion.dir_a == Direcciones.Dir.OESTE
+	for conexion in ConexionesMapaScript.calcular(_modulos_para_conexiones(), _estados_conexion):
 		var mitad := maxf(conexion.ancho, 1.5) * 0.5
-		var desvio := Vector2(0.0, mitad) if vertical else Vector2(mitad, 0.0)
+		var desvio: Vector2 = conexion.get("tangente", Vector2.RIGHT) * mitad
 		for lado in ["punto_a", "punto_b"]:
 			var centro: Vector2 = conexion[lado]
 			var cerca := Geometry2D.get_closest_point_to_segment(punto, centro - desvio, centro + desvio)
@@ -368,7 +505,7 @@ func _conexion_en(punto: Vector2) -> String:
 	## Click recorre los estados; Mayús vuelve al modo automático.
 func _cambiar_conexion(clave: String, restablecer: bool) -> void:
 	var actual: Dictionary = {}
-	for conexion in ConexionesMapaScript.calcular(_modulos_para_conexiones(), _paredes_abiertas, _estados_conexion):
+	for conexion in ConexionesMapaScript.calcular(_modulos_para_conexiones(), _estados_conexion):
 		if conexion.clave == clave:
 			actual = conexion
 	if actual.is_empty():
@@ -386,6 +523,11 @@ func _borrar(posicion: Vector2) -> void:
 	if indice >= 0:
 		var id_borrado: int = _salas[indice].id
 		_salas.remove_at(indice)
+		if _seleccion_sala == indice:
+			_seleccion_sala = -1
+		elif _seleccion_sala > indice:
+			_seleccion_sala -= 1
+		_actualizar_rotacion_visible()
 		for clave in _estados_conexion.keys():
 			var partes := String(clave).split(":")
 			if partes.size() == 2 and (int(partes[0]) == id_borrado or int(partes[1]) == id_borrado):
@@ -400,11 +542,14 @@ func _punto_mapa(posicion: Vector2) -> Vector2:
 
 func _indice_sala_en(punto: Vector2) -> int:
 	for i in range(_salas.size() - 1, -1, -1):
-		if _rect_sala(_salas[i]).has_point(punto):
+		var sala := _salas[i]
+		var definicion := _catalogo[_indice_tipo(String(sala.tipo))]
+		if _distancia_punto_poligono(punto, _vertices_sala(sala, definicion, deg_to_rad(float(sala.get("angulo", 0.0))))) == 0.0:
 			return i
 	return -1
 
 func _cambio_mapa(mensaje: String) -> void:
+	_hay_cambios = true
 	_guardar_actual()
 	if not mensaje.is_empty():
 		_estado.text = mensaje
@@ -430,21 +575,29 @@ func _dibujar() -> void:
 	for i in _salas.size():
 		var sala := _salas[i]
 		var rect := _rect_sala(sala)
-		var dibujado := Rect2(centro + rect.position * _escala, rect.size * _escala)
-		var circular: bool = modulos[i].circular
-		var color := Color(0.47, 0.42, 0.27) if not circular else Color(0.30, 0.43, 0.38)
+		var definicion := _catalogo[_indice_tipo(sala.tipo)]
+		var vertices := _vertices_sala(sala, definicion, deg_to_rad(float(sala.get("angulo", 0.0))))
+		var poligono := PackedVector2Array()
+		for v in vertices:
+			poligono.append(centro + v * _escala)
+		var color := Color(0.47, 0.42, 0.27)
 		if solapadas.has(i):
 			color = Color(0.62, 0.22, 0.20)
-		_lienzo.draw_rect(dibujado, color)
-		_lienzo.draw_rect(dibujado, Color(0.83, 0.79, 0.62), false, 2.0)
-		var etiqueta: String = sala.tipo + (" (sin puertas por ahora)" if circular else "")
-		_lienzo.draw_string(ThemeDB.fallback_font, dibujado.position + Vector2(5, 18), etiqueta, HORIZONTAL_ALIGNMENT_LEFT, -1, 12, Color.WHITE)
-	for conexion in ConexionesMapaScript.calcular(modulos, _paredes_abiertas, _estados_conexion):
+		_lienzo.draw_colored_polygon(poligono, color)
+		for e in poligono.size():
+			var color_borde := Color(0.30, 0.85, 1.0) if i == _seleccion_sala else Color(0.83, 0.79, 0.62)
+			_lienzo.draw_line(poligono[e], poligono[(e + 1) % poligono.size()], color_borde, 3.0 if i == _seleccion_sala else 2.0)
+		var etiqueta: String = sala.tipo + (" · %.0f°" % float(sala.get("angulo", 0.0)))
+		_lienzo.draw_string(ThemeDB.fallback_font, centro + Vector2(sala.x, sala.z) * _escala - Vector2(definicion.ancho_m * _escala * 0.5, 0), etiqueta, HORIZONTAL_ALIGNMENT_LEFT, -1, 12, Color.WHITE)
+	for conexion in ConexionesMapaScript.calcular(modulos, _estados_conexion):
 		_dibujar_puerta(conexion, centro)
 	var plan_solapes: Dictionary = PlanificadorSolapesScript.calcular(modulos, _estados_solape)
 	for par in plan_solapes.pares:
-		var area: Rect2 = par.rect
-		_lienzo.draw_rect(Rect2(centro + area.position * _escala, area.size * _escala), Color(0.8, 0.2, 0.18, 0.18), true)
+		for area in par.poligonos:
+			var puntos := PackedVector2Array()
+			for punto in area:
+				puntos.append(centro + punto * _escala)
+			_lienzo.draw_colored_polygon(puntos, Color(0.8, 0.2, 0.18, 0.18))
 	for segmento in plan_solapes.segmentos:
 		var color := Color(0.55, 1.0, 0.55)
 		match String(segmento.estado):
@@ -470,10 +623,10 @@ func _segmento_solape_en(punto: Vector2) -> String:
 ## Marca cada conexión: verde puerta, celeste pared abierta, naranja pared cerrada.
 ## Un punto blanco indica que el estado lo eligió el usuario.
 func _dibujar_puerta(conexion: Dictionary, centro: Vector2) -> void:
-	var vertical: bool = conexion.dir_a == Direcciones.Dir.ESTE or conexion.dir_a == Direcciones.Dir.OESTE
 	var cerrada: bool = conexion.estado == ConexionesMapaScript.ESTADO_CERRADA
 	var largo: float = conexion.largo if cerrada else conexion.ancho
-	var mitad := (Vector2(0.0, largo) if vertical else Vector2(largo, 0.0)) * 0.5 * _escala
+	var tangente: Vector2 = conexion.get("tangente", Vector2.RIGHT)
+	var mitad := tangente * largo * 0.5 * _escala
 	var color := Color(0.55, 1.0, 0.55)
 	if conexion.estado == ConexionesMapaScript.ESTADO_ABIERTA:
 		color = Color(0.55, 0.95, 1.0)
@@ -502,11 +655,11 @@ func _quitar_duplicados_catalogo(completo: Array[SalaDef]) -> Array[SalaDef]:
 	return resultado
 
 func _firma_geometria(definicion: SalaDef) -> String:
-	var lado_a := minf(definicion.ancho_m, definicion.largo_m)
-	var lado_b := maxf(definicion.ancho_m, definicion.largo_m)
-	var circular := definicion.escena != null and definicion.escena.resource_path.ends_with("sala_circular.tscn")
+	var puntos: Array[String] = []
+	for punto in definicion.obtener_huella_local():
+		puntos.append("%.3f,%.3f" % [punto.x, punto.y])
 	var columnas: Array[String] = []
 	for posicion in definicion.columnas_locales:
 		columnas.append("%.2f,%.2f,%.2f" % [posicion.x, posicion.y, posicion.z])
 	columnas.sort()
-	return "%.2f|%.2f|%.2f|%s|%s|%s" % [lado_a, lado_b, definicion.alto_m, circular, columnas.size(), ";".join(columnas)]
+	return "%.2f|%.2f|%.2f|%s|%s" % [definicion.ancho_m, definicion.largo_m, definicion.alto_m, ";".join(puntos), ";".join(columnas)]

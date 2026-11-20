@@ -26,9 +26,9 @@ func generar(definiciones: Array[SalaDef], semilla: int, max_salas: int) -> Dict
 	var inicial := _elegir_definicion_valida(definiciones_validas)
 	if inicial == null:
 		return _resultado()
-	_agregar_sala(inicial, Vector3.ZERO, 0, Rect2(Vector2.ZERO, Vector2(inicial.ancho_m, inicial.largo_m)))
+	_agregar_sala(inicial, Vector3.ZERO, 0.0, inicial.obtener_huella_local())
 	for socket_indice in inicial.sockets.size():
-		_agregar_socket_pendiente(0, inicial, socket_indice, Vector3.ZERO, 0)
+		_agregar_socket_pendiente(0, inicial, socket_indice, Vector3.ZERO, 0.0)
 	while not _pendientes.is_empty() and _colocadas.size() < max_salas:
 		var destino: Dictionary = _pendientes.pop_front()
 		var opciones := _buscar_colocaciones(definiciones_validas, destino)
@@ -37,7 +37,7 @@ func generar(definiciones: Array[SalaDef], semilla: int, max_salas: int) -> Dict
 		var elegida: Dictionary = _elegir_ponderada(opciones)
 		var sala: SalaDef = elegida.sala
 		var id_nuevo := _colocadas.size()
-		_agregar_sala(sala, elegida.origen, elegida.giros, elegida.rectangulo)
+		_agregar_sala(sala, elegida.origen, elegida.angulo_y, elegida.huella_mundo)
 		_colocadas[id_nuevo]["conexion"] = {
 			"sala_destino_id": destino.sala_id,
 			"socket_destino_indice": destino.socket_indice,
@@ -48,7 +48,7 @@ func generar(definiciones: Array[SalaDef], semilla: int, max_salas: int) -> Dict
 		for socket_indice in sala.sockets.size():
 			if socket_indice == elegida.socket_indice:
 				continue
-			_agregar_socket_pendiente(id_nuevo, sala, socket_indice, elegida.origen, elegida.giros)
+			_agregar_socket_pendiente(id_nuevo, sala, socket_indice, elegida.origen, elegida.angulo_y)
 	return _resultado()
 
 func _validar_definiciones(definiciones: Array[SalaDef]) -> Array[SalaDef]:
@@ -97,9 +97,10 @@ func _buscar_colocaciones(definiciones: Array[SalaDef], destino: Dictionary) -> 
 				indice,
 				destino.posicion,
 				destino.direccion,
-				destino.ancho
+				destino.ancho,
+				float(destino.rotacion_pared)
 			)
-			if not _grilla.esta_libre(col.rectangulo):
+			if not _grilla.esta_libre_huella(col.huella_mundo):
 				continue
 			var id_recurso := definicion.get_instance_id()
 			sockets_viables_por_sala[id_recurso] = sockets_viables_por_sala.get(id_recurso, 0) + 1
@@ -110,6 +111,7 @@ func _buscar_colocaciones(definiciones: Array[SalaDef], destino: Dictionary) -> 
 				"giros": col.giros,
 				"angulo_y": col.angulo_y,
 				"rectangulo": col.rectangulo,
+				"huella_mundo": col.huella_mundo,
 				"ancho_pasaje": col.ancho_pasaje,
 				"relleno_por_lado": col.relleno_por_lado,
 				"peso": 0.0
@@ -139,25 +141,29 @@ func _elegir_ponderada(opciones: Array[Dictionary]) -> Dictionary:
 			return opcion
 	return opciones.back()
 
-func _agregar_sala(definicion: SalaDef, origen: Vector3, giros: int, rectangulo: Rect2) -> void:
+func _agregar_sala(definicion: SalaDef, origen: Vector3, angulo_y: float, huella_mundo: PackedVector2Array) -> void:
 	var id := _colocadas.size()
-	_grilla.ocupar(rectangulo, id)
+	_grilla.ocupar_huella(huella_mundo, id)
 	_colocadas.append({
 		"id": id,
 		"sala": definicion,
 		"origen": origen,
-		"giros": giros,
-		"angulo_y": -giros * PI / 2.0,
-		"rectangulo": rectangulo
+		"giros": posmod(roundi(-angulo_y / (PI * 0.5)), 4),
+		"angulo_y": angulo_y,
+		"rectangulo": GeometriaHuella.limites(huella_mundo),
+		"huella_mundo": huella_mundo.duplicate()
 	})
 
-func _agregar_socket_pendiente(id_sala: int, definicion: SalaDef, indice: int, origen: Vector3, giros: int) -> void:
+func _agregar_socket_pendiente(id_sala: int, definicion: SalaDef, indice: int, origen: Vector3, angulo_y: float) -> void:
 	var socket: SocketDef = definicion.sockets[indice]
+	var posicion_mundo := origen + socket.posicion_local.rotated(Vector3.UP, angulo_y)
+	var pared_local := socket.rotacion_pared if socket.arista >= 0 else -float(socket.direccion) * PI / 2.0
 	_pendientes.append({
 		"sala_id": id_sala,
 		"socket_indice": indice,
-		"posicion": origen + Direcciones.rotar_punto(socket.posicion_local, giros),
-		"direccion": Direcciones.girar(socket.direccion, giros),
+		"posicion": posicion_mundo,
+		"direccion": Direcciones.girar(socket.direccion, roundi(-angulo_y / (PI * 0.5))),
+		"rotacion_pared": pared_local + angulo_y,
 		"ancho": socket.ancho
 	})
 

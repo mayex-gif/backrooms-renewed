@@ -18,6 +18,8 @@ var gravedad: float = ProjectSettings.get_setting("physics/3d/default_gravity")
 var agachado := false
 var arrastrandose := false
 var modo_noclip := false
+## Luz ambiente baja: la iluminación la dan los paneles del techo, no el ambiente.
+const ENERGIA_AMBIENTE := 0.14
 const ALTURA_CAPSULA_PARADO := 1.8
 const ALTURA_CAPSULA_AGACHADO := 1.0
 const ALTURA_CAPSULA_ARRASTRADO := 0.65
@@ -35,8 +37,8 @@ func _configurar_ambiente() -> void:
 	ambiente.background_mode = Environment.BG_COLOR
 	ambiente.background_color = Color(0.035, 0.033, 0.027)
 	ambiente.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
-	ambiente.ambient_light_color = Color(0.55, 0.55, 0.55)
-	ambiente.ambient_light_energy = 0.32
+	ambiente.ambient_light_color = Color(0.5, 0.5, 0.46)
+	ambiente.ambient_light_energy = ENERGIA_AMBIENTE
 	ambiente.tonemap_mode = Environment.TONE_MAPPER_FILMIC
 	ambiente.ssao_enabled = true
 	ambiente.ssao_radius = 1.2
@@ -50,8 +52,13 @@ func _configurar_ambiente() -> void:
 	ambiente.glow_enabled = true
 	ambiente.glow_intensity = 0.35
 	ambiente.glow_strength = 0.45
+	# Niebla leve y oscura: da profundidad a los pasillos largos sin esconder las salas.
+	ambiente.fog_enabled = true
+	ambiente.fog_light_color = Color(0.1, 0.095, 0.075)
+	ambiente.fog_density = 0.008
+	ambiente.sdfgi_bounce_feedback = 0.6
 	world_environment.add_to_group("entornos_juego")
-	world_environment.set_meta("energia_ambiente_base", 0.32)
+	world_environment.set_meta("energia_ambiente_base", ENERGIA_AMBIENTE)
 
 func _configurar_controles() -> void:
 	var teclas := {"adelante": [KEY_W, KEY_UP], "atras": [KEY_S, KEY_DOWN], "izquierda": [KEY_A, KEY_LEFT], "derecha": [KEY_D, KEY_RIGHT], "correr": [KEY_CTRL], "caminar_sigiloso": [KEY_SHIFT], "agachar": [KEY_C], "arrastrarse": [KEY_Z], "linterna": [KEY_F]}

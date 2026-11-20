@@ -8,6 +8,8 @@ extends Node3D
 @export var sockets: Array[SocketDef] = []
 @export var semilla_ambiente := 1
 
+const LuminariaScript = preload("res://salas/luminaria.gd")
+
 func _ready() -> void:
 	_crear_cilindro("Piso", 0.2, -0.1)
 	_crear_techo_modular()
@@ -40,7 +42,7 @@ func _ready() -> void:
 		var dintel := StaticBody3D.new()
 		dintel.name = "DintelCircular"
 		dintel.position = socket.posicion_local + Vector3.UP * (alto_m + altura_puerta) * 0.5
-		dintel.rotation.y = -socket.direccion * PI / 2.0
+		dintel.rotation.y = -socket.rotacion_radial if socket.rotacion_radial >= 0.0 else -socket.direccion * PI / 2.0
 		var forma_dintel := BoxShape3D.new()
 		forma_dintel.size = Vector3(socket.ancho, alto_m - altura_puerta, 0.2)
 		var colision_dintel := CollisionShape3D.new()
@@ -89,11 +91,12 @@ func _crear_techo_modular() -> void:
 				tile.position.y += rng.randf_range(0.04, 0.12)
 				tile.rotation_degrees.z = rng.randf_range(-2.0, 2.0)
 			if posmod(x - fase_x, 3) == 0 and posmod(z - fase_z, 3) == 0 and rng.randf() > 0.25 and centro_x >= 1.1 and centro_z >= 1.1 and centro_x <= radio_m * 2.0 - 1.1 and centro_z <= radio_m * 2.0 - 1.1:
-				_crear_luminaria_techo(Vector3(centro_x, alto_m - 0.155, centro_z), rng)
+				LuminariaScript.crear(self, Vector3(centro_x, alto_m - 0.155, centro_z), 1.475, 1.475, alto_m, rng)
 
 func _crear_viga(posicion: Vector3, tamano: Vector3) -> void:
 	var visual := MeshInstance3D.new()
 	visual.name = "ReticulaTecho"
+	visual.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	visual.position = posicion
 	var malla := BoxMesh.new()
 	malla.size = tamano
@@ -113,43 +116,10 @@ func _crear_tile(posicion: Vector3, tamano: float, rng: RandomNumberGenerator) -
 	var malla := BoxMesh.new()
 	malla.size = forma.size
 	visual.mesh = malla
+	visual.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	cuerpo.add_child(visual)
 	add_child(cuerpo)
 	return cuerpo
-
-func _crear_luminaria_techo(posicion: Vector3, rng: RandomNumberGenerator) -> void:
-	var luminaria := Node3D.new()
-	luminaria.name = "PanelFluorescente"
-	luminaria.add_to_group("luces_techo")
-	luminaria.position = posicion
-	var funciona := rng.randf() > 0.28
-	var panel := MeshInstance3D.new()
-	panel.name = "PanelEmisor"
-	var malla := BoxMesh.new()
-	malla.size = Vector3(1.475, 0.05, 1.475)
-	panel.mesh = malla
-	var material := StandardMaterial3D.new()
-	material.albedo_color = Color.WHITE if funciona else Color(0.12, 0.12, 0.12)
-	material.emission_enabled = funciona
-	material.emission = Color.WHITE
-	material.emission_energy_multiplier = 1.6
-	panel.material_override = material
-	panel.add_to_group("paneles_luz")
-	panel.set_meta("emite_por_defecto", funciona)
-	luminaria.add_child(panel)
-	if funciona:
-		var luz := OmniLight3D.new()
-		luz.light_color = Color(1.0, 0.96, 0.88)
-		luz.light_energy = 0.75
-		luz.omni_range = maxf(4.5, alto_m + 0.8)
-		luz.shadow_enabled = false
-		luz.add_to_group("luces_techo_nodos")
-		luz.set_meta("energia_base", luz.light_energy)
-		luminaria.add_child(luz)
-		if rng.randf() > 0.15:
-			luminaria.set_script(load("res://salas/fluorescente.gd"))
-			luminaria.set("semilla", rng.randi())
-	add_child(luminaria)
 
 func _es_hueco_de_puerta(angulo: float, paso: float) -> bool:
 	for socket in sockets:
@@ -178,6 +148,7 @@ func _crear_cilindro(nombre: String, alto: float, y: float) -> void:
 	malla.bottom_radius = radio_m
 	malla.height = alto
 	visual.mesh = malla
+	visual.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	if nombre == "Techo":
 		visual.position.y = alto * 0.5
 	cuerpo.add_child(visual)

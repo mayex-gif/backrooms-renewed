@@ -155,22 +155,23 @@ static func crear(multiplicador_grandes: float = 1.0, multiplicador_abiertas: fl
 				continue # Deja libre el acceso este.
 			sala_columnas.columnas_locales.append(Vector3(x, 0, z))
 	catalogo.append(sala_columnas)
-	var circular := _sala("Sala circular 10 m", 10.0, 10.0, 2.5, 58.0, [
-		[Direcciones.Dir.NORTE, Vector3(5, 0, 0)],
-		[Direcciones.Dir.ESTE, Vector3(10, 0, 5)],
-		[Direcciones.Dir.SUR, Vector3(5, 0, 10)],
-		[Direcciones.Dir.OESTE, Vector3(0, 0, 5)]
-	], 4.2)
-	circular.escena = load("res://salas/sala_circular.tscn")
+	var huella_circular := GeometriaHuella.circulo(5.0, 32, true)
+	var aristas_circulo := _aristas_exteriores_circulo(huella_circular)
+	var circular := _sala_poligonal("Sala circular 10 m", 10.0, 10.0, 2.5, 58.0, huella_circular, aristas_circulo, 4.2)
 	catalogo.append(circular)
-	var circular_grande := _sala("Sala circular amplia 15 m", 15.0, 15.0, 3.0, 42.0, [
-		[Direcciones.Dir.NORTE, Vector3(7.5, 0, 0)],
-		[Direcciones.Dir.ESTE, Vector3(15, 0, 7.5)],
-		[Direcciones.Dir.SUR, Vector3(7.5, 0, 15)],
-		[Direcciones.Dir.OESTE, Vector3(0, 0, 7.5)]
-	])
-	circular_grande.escena = load("res://salas/sala_circular.tscn")
+	var huella_circular_grande := GeometriaHuella.circulo(7.5, 32, true)
+	var aristas_circulo_grande := _aristas_exteriores_circulo(huella_circular_grande)
+	var circular_grande := _sala_poligonal("Sala circular amplia 15 m", 15.0, 15.0, 3.0, 42.0, huella_circular_grande, aristas_circulo_grande)
 	catalogo.append(circular_grande)
+	catalogo.append(_sala_poligonal("Sala triangular equilátera 5 m", 5.0, 4.33, 2.0, 20.0, PackedVector2Array([
+		Vector2(0, 0), Vector2(5, 0), Vector2(2.5, 4.33)
+	])))
+	catalogo.append(_sala_poligonal("Sala triangular rectángula 5 m", 5.0, 5.0, 2.0, 18.0, PackedVector2Array([
+		Vector2(0, 0), Vector2(5, 0), Vector2(0, 5)
+	])))
+	catalogo.append(_sala_poligonal("Sala triangular 30-60-90", 8.66, 5.0, 2.0, 16.0, PackedVector2Array([
+		Vector2(0, 0), Vector2(8.66, 0), Vector2(0, 5)
+	])))
 	for definicion in catalogo:
 		if definicion.ancho_m >= 10.0 or definicion.largo_m >= 10.0:
 			definicion.peso *= multiplicador_grandes
@@ -207,3 +208,41 @@ static func _sala(nombre: String, ancho: float, largo: float, ancho_puerta: floa
 					socket.posicion_local.z += desplazamiento
 		definicion.sockets.append(socket)
 	return definicion
+
+static func _sala_poligonal(nombre: String, ancho: float, largo: float, ancho_puerta: float, peso: float, huella: PackedVector2Array, aristas_sockets: Array[int] = [], alto: float = 4.2) -> SalaDef:
+	var definicion := _sala(nombre, ancho, largo, ancho_puerta, peso, [])
+	definicion.alto_m = alto
+	definicion.huella_local = huella
+	for arista in huella.size():
+		if not aristas_sockets.is_empty() and not aristas_sockets.has(arista):
+			continue
+		var inicio := huella[arista]
+		var fin := huella[(arista + 1) % huella.size()]
+		var eje := fin - inicio
+		var socket := SocketDef.new()
+		socket.arista = arista
+		socket.rotacion_pared = -atan2(eje.y, eje.x)
+		socket.posicion_local = Vector3((inicio.x + fin.x) * 0.5, 0, (inicio.y + fin.y) * 0.5)
+		socket.ancho = minf(ancho_puerta, eje.length() - 0.1)
+		definicion.sockets.append(socket)
+	return definicion
+
+static func _aristas_exteriores_circulo(huella: PackedVector2Array) -> Array[int]:
+	var resultado: Array[int] = []
+	for direccion in [Vector2(0, -1), Vector2(1, 0), Vector2(0, 1), Vector2(-1, 0)]:
+		var mejor_arista := -1
+		var mejor_proyeccion := -INF
+		for arista in huella.size():
+			var inicio := huella[arista]
+			var fin := huella[(arista + 1) % huella.size()]
+			var eje := fin - inicio
+			if eje.length() < 1.5:
+				continue
+			var normal := Vector2(eje.y, -eje.x).normalized()
+			var proyeccion := ((inicio + fin) * 0.5).dot(direccion)
+			if normal.dot(direccion) > 0.98 and proyeccion > mejor_proyeccion:
+				mejor_proyeccion = proyeccion
+				mejor_arista = arista
+		if mejor_arista >= 0:
+			resultado.append(mejor_arista)
+	return resultado

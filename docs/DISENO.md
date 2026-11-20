@@ -56,27 +56,72 @@ con el recorrido previsto.
 - Las aberturas que no se usan quedan cerradas; las transiciones de altura
   reciben un panel sobre la puerta.
 
+## Rotación y contactos en el editor de mapas
+
+Las salas rectangulares se pueden girar en pasos de 5°. La pieza en colocación
+y la sala seleccionada tienen controles positivo y negativo separados; R y
+Mayús+R giran la sala seleccionada, o ajustan la pieza si no hay una sala
+seleccionada. El mapa guarda el centro y el ángulo en grados; al abrir mapas
+anteriores, sus coordenadas de esquina y giros de 90° se convierten al formato
+nuevo.
+
+Las salas giradas se unen solo cuando dos paredes rectas coinciden dentro de
+1 cm. Al colocar o mover una pieza, el editor intenta ajustar su centro a la
+pared cercana. Las huellas poligonales gobiernan selección, contacto y solapes
+en piezas rectangulares, triangulares y circulares con cualquier rotación.
+Cada tramo interior de pared conserva un estado independiente. La misma
+geometría gobierna detección, ajuste, pisos, techos, luces y paredes para que
+no queden huecos ni piezas duplicadas; las diferencias entre piezas se
+expresan en sus huellas y datos, no en ramas especiales por tipo.
+
+La prueba visual mostró paredes sobrantes y faltantes en salas circulares. Se
+quitaron los rellenos rectangulares cardinales y el perímetro se representa
+como huella poligonal con cuatro aristas planas para sockets. La geometría usa
+el constructor común de piso, techo, paredes, conexiones y solapes. El cambio
+requiere todavía validación visual en Godot.
+
+Se aprobó agregar tres huellas triangulares para enlazar salas a distintos
+ángulos: equilátera (60°/60°/60°, lados de 5 m), rectángula isósceles
+(45°/45°/90°, catetos de 5 m) y rectángula de 30°/60°/90° (cateto corto de
+5 m). Ya están en el catálogo y usan sockets de arista. El filtro del catálogo compara dimensiones, altura, columnas y forma,
+pero ignora la distribución de sockets porque las puertas se eligen en el
+editor; por eso variantes como `Giro 5x5` se descartan si otra sala tiene la
+misma geometría. Para triángulos, huella, detección de contacto y solape,
+selección en el editor, paredes con aberturas, piso y techo deben compartir la
+misma lista de vértices. No se deben introducir triángulos solo en el editor:
+el catálogo, los sockets, el generador procedural y el constructor 3D deben
+usar el mismo contrato geométrico antes de publicarlos como piezas disponibles.
+
+La decisión de alcance es permitir solapes configurables en el editor para
+cualquier par de huellas; el generador procedural mantiene la colocación sin
+solapes automáticos. La conexión procedural sí debe aceptar sockets sobre
+cualquier arista, para que el catálogo común no dependa de direcciones
+cardinales.
+
 ## Solapes en el editor de mapas
 
-El editor permite superponer salas rectangulares en pasos de 0,5 m. Cada
-segmento de pared que queda dentro de otra sala recorre de forma independiente
-los estados puerta, abertura con dintel, tabique y abertura completa. Las salas
-circulares siguen excluidas hasta poder recortar correctamente su perímetro
-curvo. La abertura completa llega como máximo al techo más alto de las salas
-que ocupan el otro lado del muro; si el módulo actual es más alto, conserva el
+El editor usa huellas poligonales para ubicar, girar y superponer piezas. Cada
+segmento interior recorre de forma independiente los estados puerta, abertura
+con dintel, tabique y abertura completa. El contrato aprobado permite que
+cualquier huella se cruce con cualquier otra a cualquier rotación, incluidos
+los círculos. La implementación todavía está en curso; generación procedural,
+validación de sockets y construcción 3D deben consumir el mismo modelo de
+aristas y huellas antes de considerar la función terminada.
+La abertura completa llega como máximo al techo más alto de las salas que
+ocupan el otro lado del muro; si el módulo actual es más alto, conserva el
 paño superior hasta su propio techo.
 
 Con la cota de piso actual, el piso compartido queda a cargo de la primera sala
-del mapa. Los techos de distinta altura se conservan como niveles separados;
-solo se deduplican cuando coinciden en altura, priorizando la primera sala.
-Esta propiedad debe basarse en la cota de cada superficie cuando el editor
-permita niveles de piso distintos. El soporte estructural de salas pequeñas
-completamente abiertas se revisará junto con el editor 3D y la colocación a
-distintas cotas.
+del mapa. En el área superpuesta prevalece el techo más alto: se quitan las
+placas y luminarias del nivel bajo dentro de esa huella, y se conservan las
+paredes necesarias hasta el techo que corresponda. La propiedad debe basarse
+en la cota de cada superficie cuando el editor permita niveles de piso
+distintos. El soporte estructural de salas pequeñas completamente abiertas se
+revisará junto con el editor 3D y la colocación a distintas cotas.
 
 ## Salas y techos
 
-El catálogo contiene 24 tipos entre salas de 5 × 5 m, variantes medianas,
+El catálogo contiene 27 tipos entre salas de 5 × 5 m, variantes medianas,
 cámaras de 10 × 10 m, salas abiertas de hasta 15 × 20 m y un vestíbulo de
 20 × 15 m. Incluye pasillos, giros, cruces, bifurcaciones, cámaras altas,
 un pasaje bajo y una pieza circular.
@@ -85,7 +130,7 @@ Las salas modulares usan placas de 1,25 m. La retícula y las placas comparten
 la altura inferior y sus bordes se tocan para evitar escalones y ranuras. Las
 luminarias ocupan casi el tile completo y parten de una distribución cada tres
 tiles; hay placas ausentes, desplazadas, quemadas o intermitentes. La sala
-circular usa el mismo criterio con una retícula recortada por su forma. La
+circular usa la retícula común recortada por su huella. La
 geometría volvió a materiales por defecto, sin tintes ni texturas.
 
 La iluminación usa fluorescentes blancos con alcance local y un relleno

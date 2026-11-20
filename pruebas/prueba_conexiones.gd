@@ -37,13 +37,13 @@ func _chequear(condicion: bool, texto: String) -> void:
 
 ## Un módulo para ConexionesMapa: rectángulo en metros (x, z, ancho, largo).
 func _m(x: float, z: float, ancho: float, largo: float, circular: bool = false) -> Dictionary:
-	return {"rect": Rect2(x, z, ancho, largo), "circular": circular}
+	return {"rect": Rect2(x, z, ancho, largo), "centro": Vector2(x + ancho * 0.5, z + largo * 0.5), "ancho": ancho, "largo": largo, "angulo": 0.0, "radio": minf(ancho, largo) * 0.5, "circular": circular}
 
 
 func _prueba_union_horizontal() -> void:
 	print("-- Salas una al lado de la otra")
 	var modulos: Array[Dictionary] = [_m(0, 0, 5, 5), _m(5, 0, 5, 5)]
-	var c := ConexionesMapaScript.calcular(modulos, false)
+	var c := ConexionesMapaScript.calcular(modulos)
 	_chequear(c.size() == 1, "dos salas pegadas generan 1 puerta")
 	_chequear(c[0].dir_a == Direcciones.Dir.ESTE and c[0].dir_b == Direcciones.Dir.OESTE, "A mira al ESTE y B al OESTE")
 	_chequear(c[0].punto_a == Vector2(5, 2.5) and c[0].punto_b == Vector2(5, 2.5), "ambos centros de puerta en (5; 2,5)")
@@ -55,58 +55,65 @@ func _prueba_union_horizontal() -> void:
 func _prueba_union_vertical() -> void:
 	print("-- Salas una sobre la otra")
 	var modulos: Array[Dictionary] = [_m(0, 0, 5, 5), _m(0, 5, 5, 5)]
-	var c := ConexionesMapaScript.calcular(modulos, false)
+	var c := ConexionesMapaScript.calcular(modulos)
 	_chequear(c.size() == 1, "1 puerta")
 	_chequear(c[0].dir_a == Direcciones.Dir.SUR and c[0].dir_b == Direcciones.Dir.NORTE, "A (arriba) mira al SUR y B al NORTE")
 	_chequear(c[0].punto_a == Vector2(2.5, 5), "centro de la puerta en (2,5; 5)")
 	var invertido: Array[Dictionary] = [_m(0, 5, 5, 5), _m(0, 0, 5, 5)]
-	var c2 := ConexionesMapaScript.calcular(invertido, false)
+	var c2 := ConexionesMapaScript.calcular(invertido)
 	_chequear(c2[0].dir_a == Direcciones.Dir.NORTE and c2[0].dir_b == Direcciones.Dir.SUR, "si A está abajo, A mira al NORTE")
 
 
 func _prueba_largo_compartido() -> void:
 	print("-- Largo de pared compartida")
 	var desfasadas: Array[Dictionary] = [_m(0, 0, 5, 5), _m(5, 2, 5, 5)]
-	var c := ConexionesMapaScript.calcular(desfasadas, false)
+	var c := ConexionesMapaScript.calcular(desfasadas)
 	_chequear(c.size() == 1 and is_equal_approx(c[0].ancho, 3.0), "pared compartida de 3 m: puerta de 3 m")
 	_chequear(is_equal_approx(c[0].punto_a.y, 3.5), "la puerta queda centrada en la parte compartida (z = 3,5)")
 	var esquina: Array[Dictionary] = [_m(0, 0, 5, 5), _m(5, 5, 5, 5)]
-	_chequear(ConexionesMapaScript.calcular(esquina, false).is_empty(), "solo se tocan en una esquina: sin puerta")
+	_chequear(ConexionesMapaScript.calcular(esquina).is_empty(), "solo se tocan en una esquina: sin puerta")
 	var corta: Array[Dictionary] = [_m(0, 0, 5, 5), _m(5, 4, 5, 5)]
-	_chequear(ConexionesMapaScript.calcular(corta, false).is_empty(), "1,0 m compartido: sin puerta")
+	_chequear(ConexionesMapaScript.calcular(corta).is_empty(), "1,0 m compartido: sin puerta")
 	var justa: Array[Dictionary] = [_m(0, 0, 5, 5), _m(5, 3.5, 5, 5)]
-	var cj := ConexionesMapaScript.calcular(justa, false)
+	var cj := ConexionesMapaScript.calcular(justa)
 	_chequear(cj.size() == 1 and is_equal_approx(cj[0].ancho, 1.5), "1,5 m compartidos: puerta de 1,5 m")
 
 
 func _prueba_huecos() -> void:
 	print("-- Huecos entre salas")
 	var hueco: Array[Dictionary] = [_m(0, 0, 5, 5), _m(5.5, 0, 5, 5)]
-	var c := ConexionesMapaScript.calcular(hueco, false)
-	_chequear(c.size() == 1 and is_equal_approx(c[0].separacion, 0.5), "hueco de 0,5 m: hay puerta y separación 0,5")
-	_chequear(c[0].punto_a == Vector2(5, 2.5) and c[0].punto_b == Vector2(5.5, 2.5), "cada puerta queda sobre su propia pared")
+	_chequear(ConexionesMapaScript.calcular(hueco).is_empty(), "hueco de 0,5 m: las salas separadas no se conectan")
+	var casi: Array[Dictionary] = [_m(0, 0, 5, 5), _m(5.005, 0, 5, 5)]
+	_chequear(ConexionesMapaScript.calcular(casi).size() == 1, "5 mm de diferencia todavía cuenta como contacto")
 	var lejos: Array[Dictionary] = [_m(0, 0, 5, 5), _m(6.5, 0, 5, 5)]
-	_chequear(ConexionesMapaScript.calcular(lejos, false).is_empty(), "hueco de 1,5 m: sin puerta")
-
+	_chequear(ConexionesMapaScript.calcular(lejos).is_empty(), "hueco de 1,5 m: sin puerta")
 
 func _prueba_pared_completa() -> void:
-	print("-- Pared completa abierta")
+	print("-- Intersección (pared quitada de piso a techo)")
 	var iguales: Array[Dictionary] = [_m(0, 0, 5, 5), _m(5, 0, 5, 5)]
-	_chequear(ConexionesMapaScript.calcular(iguales, true)[0].completa, "misma medida y alineadas: se abre toda la pared")
+	var abierta := {"0:1": ConexionesMapaScript.ESTADO_INTERSECCION}
+	_chequear(ConexionesMapaScript.calcular(iguales, abierta)[0].completa, "misma medida y alineadas: se abre toda la pared")
 	var desalineadas: Array[Dictionary] = [_m(0, 0, 5, 5), _m(5, 2, 5, 5)]
-	_chequear(not ConexionesMapaScript.calcular(desalineadas, true)[0].completa, "desalineadas: queda una puerta común")
-	var distintas: Array[Dictionary] = [_m(0, 0, 5, 5), _m(5, 0, 5, 7.5)]
-	_chequear(not ConexionesMapaScript.calcular(distintas, true)[0].completa, "distinto largo de pared: queda una puerta común")
+	var d := ConexionesMapaScript.calcular(desalineadas, abierta)[0]
+	_chequear(not d.completa and d.sin_dintel and is_equal_approx(d.ancho, 3.0), "desalineadas: se abre el tramo compartido sin dintel")
 	var verticales: Array[Dictionary] = [_m(0, 0, 7.5, 5), _m(0, 5, 7.5, 5)]
-	_chequear(ConexionesMapaScript.calcular(verticales, true)[0].completa, "también en vertical")
-
+	_chequear(ConexionesMapaScript.calcular(verticales, abierta)[0].completa, "también en vertical")
+	_chequear(not ConexionesMapaScript.calcular(iguales)[0].completa, "sin elección: puerta común, la pared no se abre")
 
 func _prueba_circulares_y_varias_salas() -> void:
 	print("-- Circulares y varias salas")
 	var con_circular: Array[Dictionary] = [_m(0, 0, 5, 5), _m(5, 0, 10, 10, true)]
-	_chequear(ConexionesMapaScript.calcular(con_circular, false).is_empty(), "las salas circulares todavía no reciben puertas")
+	_chequear(ConexionesMapaScript.calcular(con_circular).size() == 1, "una sala puede conectar tangencialmente con el perímetro circular")
+	var modulo_girado := _m(0, 0, 5, 5)
+	modulo_girado.centro = Vector2.ZERO
+	modulo_girado.angulo = deg_to_rad(30.0)
+	var vecino_girado := _m(0, 0, 5, 5)
+	vecino_girado.centro = Vector2(5, 0).rotated(deg_to_rad(30.0))
+	vecino_girado.angulo = deg_to_rad(30.0)
+	var contactos_girados: Array[Dictionary] = [modulo_girado, vecino_girado]
+	_chequear(ConexionesMapaScript.calcular(contactos_girados).size() == 1, "dos salas giradas con paredes tangentes conectan")
 	var en_l: Array[Dictionary] = [_m(0, 0, 5, 5), _m(5, 0, 5, 5), _m(0, 5, 5, 5)]
-	var c := ConexionesMapaScript.calcular(en_l, false)
+	var c := ConexionesMapaScript.calcular(en_l)
 	_chequear(c.size() == 2, "tres salas en L: 2 puertas")
 	_chequear(c[0].a == 0 and c[0].b == 1 and c[1].a == 0 and c[1].b == 2, "índices a/b apuntan a los módulos correctos")
 
@@ -118,6 +125,8 @@ func _prueba_solapes() -> void:
 	_chequear(pares.size() == 1 and pares[0] == Vector2i(0, 1), "se detecta el par (0, 1) y se ignora la sala lejana")
 	var tocandose: Array[Dictionary] = [_m(0, 0, 5, 5), _m(5, 0, 5, 5)]
 	_chequear(ConexionesMapaScript.pares_solapados(tocandose).is_empty(), "tocarse por el borde no es superponerse")
+	var tangentes_circulo: Array[Dictionary] = [_m(0, 0, 5, 5, true), _m(5, 0, 5, 5)]
+	_chequear(ConexionesMapaScript.pares_solapados(tangentes_circulo).is_empty(), "círculo y sala tangentes no cuentan como solape")
 
 
 func _prueba_estados() -> void:
@@ -125,20 +134,18 @@ func _prueba_estados() -> void:
 	var modulos: Array[Dictionary] = [_m(0, 0, 5, 5), _m(5, 0, 5, 5)]
 	var clave := ConexionesMapaScript.clave_de(0, 1)
 	_chequear(clave == "0:1" and ConexionesMapaScript.clave_de(1, 0) == "0:1", "la clave no depende del orden del par")
-	var auto := ConexionesMapaScript.calcular(modulos, false)
-	_chequear(auto[0].estado == "puerta" and not auto[0].manual, "sin elección ni opción global: puerta automática")
-	var abierta := ConexionesMapaScript.calcular(modulos, false, {clave: "abierta"})
+	var auto := ConexionesMapaScript.calcular(modulos)
+	_chequear(auto[0].estado == "puerta" and not auto[0].manual, "sin elección: puerta")
+	var abierta := ConexionesMapaScript.calcular(modulos, {clave: "abierta"})
 	_chequear(abierta[0].estado == "abierta" and abierta[0].manual and not abierta[0].completa and is_equal_approx(abierta[0].ancho, 5.0), "elegida abierta y alineada: tramo completo bajo el dintel")
-	var cerrada := ConexionesMapaScript.calcular(modulos, true, {clave: "cerrada"})
-	_chequear(cerrada.size() == 1 and cerrada[0].estado == "cerrada" and not cerrada[0].completa, "la elección manual gana a la opción global")
+	var cerrada := ConexionesMapaScript.calcular(modulos, {clave: "cerrada"})
+	_chequear(cerrada.size() == 1 and cerrada[0].estado == "cerrada" and not cerrada[0].completa, "cerrada: sigue en la lista pero sin abertura")
 	_chequear(ConexionesMapaScript.activas(cerrada).is_empty(), "las cerradas no se construyen")
-	var global_abierta := ConexionesMapaScript.calcular(modulos, true, {clave: "puerta"})
-	_chequear(global_abierta[0].estado == "puerta" and not global_abierta[0].completa, "puerta elegida a mano aunque la opción global abra paredes")
 	var desalineadas: Array[Dictionary] = [_m(0, 0, 5, 5), _m(5, 2, 5, 5)]
-	var d := ConexionesMapaScript.calcular(desalineadas, false, {clave: "abierta"})
+	var d := ConexionesMapaScript.calcular(desalineadas, {clave: "abierta"})
 	_chequear(d[0].estado == "abierta" and not d[0].completa and is_equal_approx(d[0].ancho, 3.0), "abierta sin alinear: abre todo el tramo compartido")
 	var con_ids: Array[Dictionary] = [{"id": 7, "rect": Rect2(0, 0, 5, 5), "circular": false}, {"id": 3, "rect": Rect2(5, 0, 5, 5), "circular": false}]
-	var ci := ConexionesMapaScript.calcular(con_ids, false, {"3:7": "cerrada"})
+	var ci := ConexionesMapaScript.calcular(con_ids, {"3:7": "cerrada"})
 	_chequear(ci[0].clave == "3:7" and ci[0].estado == "cerrada", "los ids de módulo definen la clave")
 	_chequear(ConexionesMapaScript.siguiente_estado("puerta") == "abierta" and ConexionesMapaScript.siguiente_estado("abierta") == "cerrada" and ConexionesMapaScript.siguiente_estado("cerrada") == "interseccion" and ConexionesMapaScript.siguiente_estado("interseccion") == "puerta", "el click recorre los cuatro estados")
 

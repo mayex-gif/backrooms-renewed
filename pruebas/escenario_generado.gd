@@ -84,8 +84,6 @@ func _crear_mapa() -> void:
 		var socket_nuevo_indice: int = conexion.socket_nuevo_indice
 		var definicion_destino: SalaDef = resultado.salas[id_destino].sala
 		var definicion_nueva: SalaDef = ubicacion.sala
-		if definicion_destino.escena.resource_path.ends_with("sala_circular.tscn") or definicion_nueva.escena.resource_path.ends_with("sala_circular.tscn"):
-			continue
 		var socket_destino: SocketDef = definicion_destino.sockets[socket_destino_indice]
 		var socket_nuevo: SocketDef = definicion_nueva.sockets[socket_nuevo_indice]
 		if _es_unico_socket_del_lado(definicion_destino, socket_destino) and _es_unico_socket_del_lado(definicion_nueva, socket_nuevo) and _lados_coinciden(definicion_destino, socket_destino, definicion_nueva, socket_nuevo):
@@ -100,8 +98,7 @@ func _crear_mapa() -> void:
 		instancia.set("ancho_m", sala_def.ancho_m)
 		instancia.set("largo_m", sala_def.largo_m)
 		instancia.set("alto_m", sala_def.alto_m)
-		if sala_def.escena.resource_path.ends_with("sala_circular.tscn"):
-			instancia.set("radio_m", minf(sala_def.ancho_m, sala_def.largo_m) * 0.5)
+		instancia.set("huella_local", sala_def.obtener_huella_local())
 		if not sala_def.columnas_locales.is_empty():
 			instancia.set("columnas", sala_def.columnas_locales)
 		var sockets_instancia: Array[SocketDef] = []
@@ -177,19 +174,26 @@ func _actualizar_limites(salas: Array) -> void:
 		_limites_maximos.y = maxf(_limites_maximos.y, rect.end.y)
 
 func _es_unico_socket_del_lado(definicion: SalaDef, socket: SocketDef) -> bool:
+	var arista := definicion.obtener_arista_socket(socket)
 	for otro in definicion.sockets:
-		if otro != socket and otro.direccion == socket.direccion:
+		if otro != socket and definicion.obtener_arista_socket(otro) == arista:
 			return false
 	return true
 
 func _lados_coinciden(def_a: SalaDef, socket_a: SocketDef, def_b: SalaDef, socket_b: SocketDef) -> bool:
-	var largo_a := def_a.ancho_m if socket_a.direccion == Direcciones.Dir.NORTE or socket_a.direccion == Direcciones.Dir.SUR else def_a.largo_m
-	var largo_b := def_b.ancho_m if socket_b.direccion == Direcciones.Dir.NORTE or socket_b.direccion == Direcciones.Dir.SUR else def_b.largo_m
+	var largo_a := def_a.largo_arista_socket(socket_a)
+	var largo_b := def_b.largo_arista_socket(socket_b)
 	if not is_equal_approx(largo_a, largo_b):
 		return false
-	var centro_a := socket_a.posicion_local.x if socket_a.direccion == Direcciones.Dir.NORTE or socket_a.direccion == Direcciones.Dir.SUR else socket_a.posicion_local.z
-	var centro_b := socket_b.posicion_local.x if socket_b.direccion == Direcciones.Dir.NORTE or socket_b.direccion == Direcciones.Dir.SUR else socket_b.posicion_local.z
-	return is_equal_approx(centro_a, largo_a * 0.5) and is_equal_approx(centro_b, largo_b * 0.5)
+	var arista_a := def_a.obtener_arista_socket(socket_a)
+	var arista_b := def_b.obtener_arista_socket(socket_b)
+	var huella_a := def_a.obtener_huella_local()
+	var huella_b := def_b.obtener_huella_local()
+	var eje_a := (huella_a[(arista_a + 1) % huella_a.size()] - huella_a[arista_a]).normalized()
+	var eje_b := (huella_b[(arista_b + 1) % huella_b.size()] - huella_b[arista_b]).normalized()
+	var medio_a := (huella_a[arista_a] + huella_a[(arista_a + 1) % huella_a.size()]) * 0.5
+	var medio_b := (huella_b[arista_b] + huella_b[(arista_b + 1) % huella_b.size()]) * 0.5
+	return absf(eje_a.dot(eje_b)) > 0.999 and socket_a.posicion_local.distance_to(Vector3(medio_a.x, 0, medio_a.y)) <= 0.001 and socket_b.posicion_local.distance_to(Vector3(medio_b.x, 0, medio_b.y)) <= 0.001
 
 func _agregar_relleno(sala: Node3D, socket: SocketDef, ancho_hueco: float, ancho_pasaje: float, sellado: bool, altura: float, nombre: String) -> void:
 	var script_relleno: Script = load("res://salas/relleno_socket.gd")
@@ -201,7 +205,7 @@ func _agregar_relleno(sala: Node3D, socket: SocketDef, ancho_hueco: float, ancho
 	relleno.set("altura", altura)
 	relleno.set("profundidad", 0.2)
 	relleno.position = socket.posicion_local
-	relleno.rotation.y = -socket.direccion * PI / 2.0
+	relleno.rotation.y = _rotacion_socket(socket)
 	sala.add_child(relleno)
 
 func _agregar_panel_superior(sala: Node3D, socket: SocketDef, alto_bajo: float, alto_alto: float) -> void:
@@ -209,7 +213,7 @@ func _agregar_panel_superior(sala: Node3D, socket: SocketDef, alto_bajo: float, 
 	var cuerpo := StaticBody3D.new()
 	cuerpo.name = "PanelSobrePuerta"
 	cuerpo.position = socket.posicion_local + Vector3.UP * (alto_bajo + alto_panel * 0.5)
-	cuerpo.rotation.y = -socket.direccion * PI / 2.0
+	cuerpo.rotation.y = _rotacion_socket(socket)
 	var forma := BoxShape3D.new()
 	forma.size = Vector3(socket.ancho, alto_panel, 0.2)
 	var colision := CollisionShape3D.new()
@@ -223,19 +227,16 @@ func _agregar_panel_superior(sala: Node3D, socket: SocketDef, alto_bajo: float, 
 	sala.add_child(cuerpo)
 
 func _agregar_cierre_superior_completo(sala: Node3D, socket: SocketDef, definicion: SalaDef, alto_bajo: float, alto_alto: float) -> void:
-	var largo_pared := definicion.ancho_m if socket.direccion == Direcciones.Dir.NORTE or socket.direccion == Direcciones.Dir.SUR else definicion.largo_m
+	var largo_pared := definicion.largo_arista_socket(socket)
 	var alto_panel := alto_alto - alto_bajo
 	var cuerpo := StaticBody3D.new()
 	cuerpo.name = "CierreSuperiorAberturaCompleta"
 	var caja := BoxShape3D.new()
 	var visual := MeshInstance3D.new()
 	var malla := BoxMesh.new()
-	if socket.direccion == Direcciones.Dir.NORTE or socket.direccion == Direcciones.Dir.SUR:
-		cuerpo.position = Vector3(largo_pared * 0.5, alto_bajo + alto_panel * 0.5, socket.posicion_local.z)
-		caja.size = Vector3(largo_pared, alto_panel, 0.2)
-	else:
-		cuerpo.position = Vector3(socket.posicion_local.x, alto_bajo + alto_panel * 0.5, largo_pared * 0.5)
-		caja.size = Vector3(0.2, alto_panel, largo_pared)
+	cuerpo.position = socket.posicion_local + Vector3.UP * (alto_bajo + alto_panel * 0.5)
+	cuerpo.rotation.y = _rotacion_socket(socket)
+	caja.size = Vector3(largo_pared, alto_panel, 0.2)
 	visual.position = Vector3.ZERO
 	malla.size = caja.size
 	visual.mesh = malla
@@ -244,3 +245,8 @@ func _agregar_cierre_superior_completo(sala: Node3D, socket: SocketDef, definici
 	cuerpo.add_child(colision)
 	cuerpo.add_child(visual)
 	sala.add_child(cuerpo)
+
+func _rotacion_socket(socket: SocketDef) -> float:
+	if socket.arista >= 0:
+		return socket.rotacion_pared
+	return -float(socket.direccion) * PI / 2.0

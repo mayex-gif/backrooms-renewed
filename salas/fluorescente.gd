@@ -4,7 +4,7 @@ extends Node3D
 @export var semilla := 1
 @export var intermitente := true
 
-@onready var luz: OmniLight3D = get_node_or_null("OmniLight3D")
+@onready var luz: Light3D = get_node_or_null("Foco")
 @onready var panel: MeshInstance3D = get_node_or_null("PanelEmisor")
 var _rng := RandomNumberGenerator.new()
 var _reloj := 0.0

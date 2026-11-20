@@ -14,7 +14,7 @@ static func panel_sobre_puerta(sala: Node3D, socket: SocketDef, alto_bajo: float
 	var alto_panel := alto_alto - alto_bajo
 	var cuerpo := _crear_cuerpo("PanelSobrePuerta", Vector3(socket.ancho, alto_panel, GROSOR))
 	cuerpo.position = socket.posicion_local + Vector3.UP * (alto_bajo + alto_panel * 0.5)
-	cuerpo.rotation.y = -socket.direccion * PI / 2.0
+	cuerpo.rotation.y = _rotacion_socket(socket)
 	sala.add_child(cuerpo)
 
 
@@ -22,16 +22,27 @@ static func panel_sobre_puerta(sala: Node3D, socket: SocketDef, alto_bajo: float
 ## de pared del módulo alto que queda por encima del techo del bajo.
 ## "sala" y "definicion" son los del módulo BAJO.
 static func cierre_pared_completa(sala: Node3D, socket: SocketDef, definicion: SalaDef, alto_bajo: float, alto_alto: float) -> void:
-	var horizontal := socket.direccion == Direcciones.Dir.NORTE or socket.direccion == Direcciones.Dir.SUR
-	var largo_pared := definicion.ancho_m if horizontal else definicion.largo_m
 	var alto_panel := alto_alto - alto_bajo
-	var tamano := Vector3(largo_pared, alto_panel, GROSOR) if horizontal else Vector3(GROSOR, alto_panel, largo_pared)
+	var indice_arista := definicion.obtener_arista_socket(socket)
+	if indice_arista < 0:
+		return
+	var huella := definicion.obtener_huella_local()
+	var inicio := huella[indice_arista]
+	var fin := huella[(indice_arista + 1) % huella.size()]
+	var largo_pared := inicio.distance_to(fin)
+	var centro_pared := (inicio + fin) * 0.5
+	var tamano := Vector3(largo_pared, alto_panel, GROSOR)
 	var cuerpo := _crear_cuerpo("CierreSuperiorAberturaCompleta", tamano)
-	if horizontal:
-		cuerpo.position = Vector3(largo_pared * 0.5, alto_bajo + alto_panel * 0.5, socket.posicion_local.z)
-	else:
-		cuerpo.position = Vector3(socket.posicion_local.x, alto_bajo + alto_panel * 0.5, largo_pared * 0.5)
+	cuerpo.position = Vector3(centro_pared.x, alto_bajo + alto_panel * 0.5, centro_pared.y)
+	cuerpo.rotation.y = _rotacion_socket(socket)
 	sala.add_child(cuerpo)
+
+static func _rotacion_socket(socket: SocketDef) -> float:
+	if socket.arista >= 0:
+		return socket.rotacion_pared
+	if socket.rotacion_radial >= 0.0:
+		return -socket.rotacion_radial
+	return -socket.direccion * PI / 2.0
 
 
 static func _crear_cuerpo(nombre: String, tamano: Vector3) -> StaticBody3D:

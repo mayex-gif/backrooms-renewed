@@ -8,6 +8,12 @@ extends Resource
 
 ## Hacia dónde mira el hueco, hacia AFUERA de la sala (antes de rotar la sala).
 @export var direccion: Direcciones.Dir = Direcciones.Dir.NORTE
+## Índice de arista en la huella poligonal; -1 mantiene la dirección cardinal.
+@export var arista: int = -1
+## Rotación local de la pared alrededor de Y para sockets sobre cualquier arista.
+@export var rotacion_pared: float = -1.0
+## Ángulo radial personalizado para una abertura sobre una pared circular. -1 usa la dirección cardinal.
+@export var rotacion_radial: float = -1.0
 
 ## Ancho del hueco en metros (por ejemplo 1.0, 1.5, 2.5, 5.0, 7.5).
 @export var ancho: float = 2.5

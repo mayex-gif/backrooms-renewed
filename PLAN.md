@@ -74,7 +74,7 @@ hay que comprobar si esa acción también genera una pausa perceptible.
 - [x] Aumentar duración y frecuencia visible de los ciclos de apagado/encendido para identificar los fluorescentes intermitentes.
 - [x] Bajar el plenum del techo para que se solape con las placas y no deje una ranura visible, también en salas bajas.
 - [x] Añadir pasillos estrechos y galerías grandes con varias salidas, compatibles con conexiones de ancho distinto y aperturas amplias.
-- [ ] Rehacer la ocupación y colocación de la sala circular para permitir conexiones laterales tangentes a su perímetro y completar el piso expuesto sin conservar una caja cuadrada.
+- [x] Completar ocupación y colocación procedural sin solapes automáticos, comparando huellas poligonales exactas.
 - [ ] Revisar visualmente colisiones y aperturas, incluida la variante circular y salas con múltiples puertas cercanas.
 - [ ] Medir por separado el tiempo de generación matemática y el de instanciación de escenas para 24/36/48/60/72 salas; registrar dispositivo, semilla y resultados.
 - [ ] Revisar Proyecto > Configuración > Rendering > Limits > Cluster Builder y confirmar el límite de luces frente a la cantidad activa del mapa.
@@ -82,11 +82,11 @@ hay que comprobar si esa acción también genera una pausa perceptible.
 - [ ] Extender solo las salas nuevas al ampliar el mapa, evitando borrar e instanciar de nuevo todas las anteriores.
 - [ ] Descargar salas lejanas y conservar sus datos para regenerarlas; coordinarlo con el registro rectangular de ocupación.
 
-**Estado de esta iteración:** la colocación, las puertas del editor y las de la
-escena jugable usan rectángulos y un cálculo compartido. Se añadieron pruebas
-automatizadas, pero todavía no se ejecutaron en Godot. Los paneles de altura y
-las correcciones del editor necesitan validación visual. La ocupación circular
-es deliberadamente conservadora porque usa su cuadrado envolvente.
+**Estado de esta iteración:** el editor, la ocupación procedural y la escena
+jugable comparten huellas poligonales convexas. El generador procedural sigue
+sin crear solapes automáticos. Las pruebas automatizadas existentes y la
+geometría nueva quedan pendientes de validación en Godot; no se ejecutaron
+durante esta iteración.
 
 ## Hito 5 — Atmósfera y publicación
 
@@ -110,18 +110,35 @@ es deliberadamente conservadora porque usa su cuadrado envolvente.
 - [x] Ejecutar `pruebas/prueba_conexiones.gd` en Godot y confirmar `=== TODO OK ===`.
 - [ ] En el mapa guardado de seis módulos, confirmar en la salida `módulos: 6 · puertas: 7` y revisar que cada sala reciba sockets antes de construir sus paredes.
 - [x] Mostrar las conexiones en el editor (verde: puerta; celeste: pared abierta) y señalar salas superpuestas en rojo.
-- [x] Evitar nuevas superposiciones al mover salas con arrastre.
+- [x] Permitir mover salas con arrastre y conservar los solapes configurables.
 - [x] Al cargar mapas, evitar autoguardados prematuros, conservar filas de tipos desconocidos y mostrar avisos de estado.
 - [x] Recibir la tecla R desde el nodo raíz para girar piezas.
-- [ ] Conectar salas circulares al perímetro curvo en el editor; sus salidas todavía requieren tratamiento específico.
+- [ ] Revisar las paredes y aberturas de salas circulares: pruebas manuales encontraron paredes que sobran y faltan.
 - [x] Elegir el estado de cada conexión en el editor (click: puerta, abierta, cerrada; Mayús+click: automático) con ids estables de módulo, guardado en `conexiones` y uso en la escena jugable.
 - [x] Probar en Godot los cuatro estados por conexión (incluida abierta entre salas desalineadas y cerrada), confirmar `=== TODO OK ===` en `prueba_conexiones.gd` con `_prueba_estados`.
 - [x] Añadir pruebas del planificador de solapes y confirmar `=== TODO OK ===` en Godot.
+- [x] Quitar la opción "Pared completa abierta": cada conexión es una puerta salvo que se elija otro estado a mano.
+- [x] Conectar salas solo si sus paredes se tocan (tolerancia 1 cm) y eliminar el piso puente que tapaba huecos.
+- [x] Corregir el panel sobre el techo bajo en conexiones "interseccion" entre salas de distinta altura.
+- [x] Iluminación: focos dirigidos con sombras (solo las cercanas), luz ambiente baja, niebla leve y linterna con sombras.
+- [ ] Probar en Godot la nueva iluminación (rendimiento a 60 FPS con sombras, brillo general, parpadeo) y ajustar `salas/luminaria.gd`.
+- [x] Permitir rotación de salas en pasos de 5°.
+- [x] Añadir ajuste de posición a paredes tangentes, controles de giro positivo/negativo, rotación de sala seleccionada, indicador visible y barra adaptable.
+- [x] Confirmar salida con Escape tras cambios; el mapa actual sigue autoguardándose.
+- [ ] Corregir y validar el manejo de Escape: la prueba manual encontró `!is_inside_tree()` al marcar el evento después de cambiar de escena.
+- [ ] Completar validación en Godot de colocación/arrastre, ajuste, selección, giro y estados de conexión; la captura confirma el indicador de giro, pero los enlaces siguen pendientes.
+- [ ] Validar paredes, aberturas y solapes circulares mediante la geometría poligonal común; la prueba manual mostró segmentos sobrantes y faltantes.
+- [x] Añadir las tres huellas triangulares aprobadas (60°/60°/60°, 45°/45°/90°, 30°/60°/90°) al catálogo común con sockets de arista.
+- [x] Generalizar huellas, contactos, sockets y solapes poligonales para todos los tipos con cualquier rotación, incluidos los círculos.
+- [x] Recortar pisos, techos, placas y luminarias según las huellas superpuestas; conservar piso prioritario y techo más alto.
+- [x] Generar paredes y segmentos interiores por arista poligonal, permitiendo elegir el estado de cada tramo entre salas rotadas.
+- [x] Evitar ramas de geometría específicas por tipo; expresar diferencias de forma mediante huellas y datos compartidos.
+- [ ] Revisar iluminación: distinguir panel apagado, parpadeo y panel estable; confirmar que solo una parte de las luces parpadee.
 - [ ] Etapa 2: validar visualmente la superposición parcial de salas y la elección independiente de cada pared interior.
 - [ ] Validar visualmente que pisos, techos, vigas, placas y luces no se dupliquen y que prevalezca el techo más alto.
 - [ ] Validar visualmente solapes parciales, paredes abiertas y tabiques entre salas de distintas alturas.
 - [ ] Revisar apoyos para salas pequeñas totalmente abiertas cuando el editor 3D permita ubicar salas a distintas cotas.
-- [ ] Resolver los solapes de salas circulares respetando el perímetro curvo.
+- [ ] Revisar los solapes circulares mediante la misma representación poligonal compartida.
 
 ## Criterios transversales
 
