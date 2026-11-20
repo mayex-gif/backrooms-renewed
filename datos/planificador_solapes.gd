@@ -44,6 +44,7 @@ static func calcular(modulos: Array[Dictionary], estados: Dictionary = {}) -> Di
 				var medio := (p0 + p1) * 0.5
 				var pares_internos: Array[int] = []
 				var duplicada := false
+				var vecinos_duplicados: Array[int] = []
 				for otro_indice in modulos.size():
 					if otro_indice == indice:
 						continue
@@ -52,13 +53,14 @@ static func calcular(modulos: Array[Dictionary], estados: Dictionary = {}) -> Di
 						pares_internos.append(otro_indice)
 					elif otro_indice < indice and _sobre_borde(otra, medio):
 						duplicada = true
+						vecinos_duplicados.append(otro_indice)
 				if not pares_internos.is_empty():
 					var clave := _clave_segmento(modulos, indice, arista, desde, hasta, inicio.distance_to(fin))
 					var valor_estado: Variant = estados.get(clave, ConexionesMapa.ESTADO_CERRADA)
 					var estado := String(valor_estado) if valor_estado is String else (ConexionesMapa.ESTADO_INTERSECCION if bool(valor_estado) else ConexionesMapa.ESTADO_CERRADA)
 					segmentos.append({"modulo": indice, "arista": arista, "direccion": arista, "inicio": p0, "fin": p1, "clave": clave, "estado": estado, "abierta": estado == ConexionesMapa.ESTADO_ABIERTA or estado == ConexionesMapa.ESTADO_INTERSECCION, "pares": pares_internos})
 				elif duplicada:
-					ocultos.append({"modulo": indice, "arista": arista, "inicio": p0, "fin": p1, "estado": ConexionesMapa.ESTADO_INTERSECCION})
+					ocultos.append({"modulo": indice, "arista": arista, "inicio": p0, "fin": p1, "estado": ConexionesMapa.ESTADO_INTERSECCION, "pares": vecinos_duplicados})
 	return {"pares": pares, "segmentos": segmentos, "ocultos": ocultos}
 
 static func siguiente_estado(estado: String) -> String:

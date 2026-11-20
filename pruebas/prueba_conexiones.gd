@@ -169,6 +169,16 @@ func _prueba_planificador_solapes() -> void:
 		_chequear(PlanificadorSolapesScript.siguiente_estado("puerta") == "abierta" and PlanificadorSolapesScript.siguiente_estado("abierta") == "cerrada" and PlanificadorSolapesScript.siguiente_estado("cerrada") == "interseccion", "cada pared interior recorre los cuatro estados")
 	_chequear(is_equal_approx(PlanificadorSolapesScript.altura_abertura_interseccion(8.0, [1.35]), 1.35), "en una sala alta conserva el paño sobre el techo bajo")
 	_chequear(is_equal_approx(PlanificadorSolapesScript.altura_abertura_interseccion(1.35, [8.0]), 1.35), "en la sala baja la intersección llega a su techo")
+	var contiguos: Array[Dictionary] = [
+		{"id": 1, "rect": Rect2(0, 0, 5, 5), "circular": false},
+		{"id": 2, "rect": Rect2(5, 0, 5, 5), "circular": false}
+	]
+	var plan_contiguo := PlanificadorSolapesScript.calcular(contiguos)
+	var ocultos_con_vecino := plan_contiguo.ocultos.size() > 0
+	for oculto in plan_contiguo.ocultos:
+		if not (oculto.get("pares", []) as Array).has(0):
+			ocultos_con_vecino = false
+	_chequear(ocultos_con_vecino, "la pared duplicada entre salas contiguas recuerda a su vecina (para respetar alturas)")
 	var con_circular: Array[Dictionary] = [
 		{"id": 10, "rect": Rect2(0, 0, 5, 5), "circular": false},
 		{"id": 30, "rect": Rect2(2, 2, 10, 10), "circular": true}
