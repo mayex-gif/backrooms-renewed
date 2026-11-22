@@ -101,6 +101,7 @@ func _crear_mapa() -> void:
 		instancia.set("huella_local", sala_def.obtener_huella_local())
 		if not sala_def.columnas_locales.is_empty():
 			instancia.set("columnas", sala_def.columnas_locales)
+			instancia.set("columnas_tamanos", sala_def.columnas_tamanos)
 		var sockets_instancia: Array[SocketDef] = []
 		for indice_socket in sala_def.sockets.size():
 			var socket_copia := sala_def.sockets[indice_socket].duplicate(true) as SocketDef

@@ -18,7 +18,7 @@ separados, no parte de estos recorridos.
 ## Estado
 
 - [x] Capa de datos para direcciones, sockets, definiciones de sala, grilla y colocación.
-- [x] Catálogo de 24 variantes entre 5 × 5 y 15 × 20 m, más un vestíbulo de 20 × 15 m y una sala circular.
+- [x] Catálogo de salas modulares pequeñas, medianas, abiertas, circulares y triangulares, con distintas alturas.
 - [x] Plano curado de hasta 39 salas y menú para elegir el modo de juego.
 - [x] Modo procedural con semilla y ampliación por bloques, disponible desde el menú.
 - [x] Techos de placas, huecos y fluorescentes espaciados, apagados o intermitentes.
@@ -46,9 +46,10 @@ individuales desde el editor de Godot.
   desde allí se controla la iluminación y, en los modos compatibles, la cantidad
   y los pesos de salas. El cursor queda libre mientras los ajustes están abiertos.
 - En el editor de mapas, **Vista de techo** superpone las placas sobre el mismo
-  plano. Cada luz usa el color de su estado y un clic alterna entre encendida,
-  intermitente y averiada. La primera vez, ejecutá **Jugar** para cargar las
-  ubicaciones reales de las luminarias; los estados se guardan en el mapa.
+  plano. Un clic recorre placa normal, luz encendida, intermitente y averiada.
+  **Generar luces automáticamente** conserva el patrón procedural; al apagarlo,
+  solo se crean las luces seleccionadas manualmente. La opción y los estados se
+  guardan en el mapa.
 
 ## Escenas de exploración y pruebas
 
@@ -77,6 +78,7 @@ individuales desde el editor de Godot.
 - [`PLAN.md`](PLAN.md): hitos, estado actual y deuda de rendimiento.
 - [`docs/DISENO.md`](docs/DISENO.md): decisiones de diseño y límites conocidos.
 - [`docs/JUGADOR.md`](docs/JUGADOR.md): origen, análisis y controles del jugador.
+- [`assets/README.md`](assets/README.md): recursos 3D y texturas externas, fuentes y licencias.
 
 El jugador se reconstruyó con referencia al último commit del proyecto
 anterior. Sus modelos, animaciones, head bobbing y audios no se importaron:

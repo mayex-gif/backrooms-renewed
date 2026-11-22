@@ -66,14 +66,15 @@ func _crear_techo_modular() -> void:
 	_crear_cilindro("Plenum circular", 0.2, alto_m + 0.02)
 	var tam_tile := 1.5
 	var cantidad := ceili((radio_m * 2.0) / tam_tile)
+	var origen_grilla := (radio_m * 2.0 - cantidad * tam_tile) * 0.5
 	for x in cantidad + 1:
-		var px := minf(x * tam_tile, radio_m * 2.0)
+		var px := origen_grilla + x * tam_tile
 		var dx := px - radio_m
 		var media_luz := sqrt(maxf(0.0, radio_m * radio_m - dx * dx))
 		if media_luz > 0.05:
 			_crear_viga(Vector3(px, alto_m + LuminariaScript.PLANO_ENCASTRE_Y + GROSOR_VIGA_TECHO * 0.5, radio_m), Vector3(0.07, GROSOR_VIGA_TECHO, media_luz * 2.0))
 	for z in cantidad + 1:
-		var pz := minf(z * tam_tile, radio_m * 2.0)
+		var pz := origen_grilla + z * tam_tile
 		var dz := pz - radio_m
 		var media_horizontal := sqrt(maxf(0.0, radio_m * radio_m - dz * dz))
 		if media_horizontal > 0.05:
@@ -83,8 +84,8 @@ func _crear_techo_modular() -> void:
 	var fase_z := 1
 	for x in cantidad:
 		for z in cantidad:
-			var centro_x := x * tam_tile + tam_tile * 0.5
-			var centro_z := z * tam_tile + tam_tile * 0.5
+			var centro_x := origen_grilla + x * tam_tile + tam_tile * 0.5
+			var centro_z := origen_grilla + z * tam_tile + tam_tile * 0.5
 			var centro_radio := Vector2(centro_x - radio_m, centro_z - radio_m).length()
 			if centro_radio > radio_m - 1.1:
 				continue

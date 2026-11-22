@@ -21,6 +21,9 @@ extends Resource
 @export_group("Forma")
 @export var sockets: Array[SocketDef] = []
 @export var columnas_locales: Array[Vector3] = []
+## Ancho y profundidad por columna, en el mismo orden que columnas_locales.
+## Un valor ausente usa la medida histórica de 1,3 × 1,3 m.
+@export var columnas_tamanos: Array[Vector2] = []
 
 func obtener_huella_local() -> PackedVector2Array:
 	if huella_local.size() >= 3:

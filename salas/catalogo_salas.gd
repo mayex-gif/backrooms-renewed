@@ -89,6 +89,23 @@ static func crear(multiplicador_grandes: float = 1.0, multiplicador_abiertas: fl
 		[Direcciones.Dir.NORTE, Vector3(2.5, 0, 0)],
 		[Direcciones.Dir.SUR, Vector3(2.5, 0, 15)]
 	]))
+	catalogo.append(_sala("Pasillo largo 3.75x12.5", 3.75, 12.5, 2.0, 30.0, [
+		[Direcciones.Dir.NORTE, Vector3(1.875, 0, 0)],
+		[Direcciones.Dir.SUR, Vector3(1.875, 0, 12.5)],
+		[Direcciones.Dir.ESTE, Vector3(3.75, 0, 6.25)]
+	]))
+	catalogo.append(_sala("Sala alargada 12.5x17.5", 12.5, 17.5, 3.0, 42.0, [
+		[Direcciones.Dir.NORTE, Vector3(6.25, 0, 0)],
+		[Direcciones.Dir.ESTE, Vector3(12.5, 0, 8.75)],
+		[Direcciones.Dir.SUR, Vector3(6.25, 0, 17.5)],
+		[Direcciones.Dir.OESTE, Vector3(0, 0, 8.75)]
+	]))
+	catalogo.append(_sala("Gran galería 17.5x10", 17.5, 10.0, 3.0, 36.0, [
+		[Direcciones.Dir.NORTE, Vector3(8.75, 0, 0)],
+		[Direcciones.Dir.ESTE, Vector3(17.5, 0, 5)],
+		[Direcciones.Dir.SUR, Vector3(8.75, 0, 10)],
+		[Direcciones.Dir.OESTE, Vector3(0, 0, 5)]
+	]))
 	catalogo.append(_sala("Gran galería 10x20", 10.0, 20.0, 3.5, 26.0, [
 		[Direcciones.Dir.NORTE, Vector3(5, 0, 0)],
 		[Direcciones.Dir.SUR, Vector3(5, 0, 20)],
@@ -154,7 +171,24 @@ static func crear(multiplicador_grandes: float = 1.0, multiplicador_abiertas: fl
 			if x == 15.0 and z == 10.0:
 				continue # Deja libre el acceso este.
 			sala_columnas.columnas_locales.append(Vector3(x, 0, z))
+			sala_columnas.columnas_tamanos.append(Vector2(0.7 + float(posmod(int(x + z), 4)) * 0.25, 0.8 + float(posmod(int(x * 2.0 + z), 3)) * 0.3))
 	catalogo.append(sala_columnas)
+	var sala_columnas_alargada := _sala("Galería abierta 15x25 con columnas", 15.0, 25.0, 3.0, 72.0, [
+		[Direcciones.Dir.NORTE, Vector3(7.5, 0, 0)],
+		[Direcciones.Dir.ESTE, Vector3(15, 0, 12.5)],
+		[Direcciones.Dir.SUR, Vector3(7.5, 0, 25)],
+		[Direcciones.Dir.OESTE, Vector3(0, 0, 12.5)]
+	])
+	for x in [3.75, 7.5, 11.25]:
+		for z in [5.0, 10.0, 15.0, 20.0]:
+			if x == 7.5 and z == 10.0:
+				continue
+			sala_columnas_alargada.columnas_locales.append(Vector3(x, 0, z))
+			sala_columnas_alargada.columnas_tamanos.append(Vector2(0.65 + float(posmod(int(x + z), 4)) * 0.3, 0.7 + float(posmod(int(x * 2.0 + z), 4)) * 0.35))
+	catalogo.append(sala_columnas_alargada)
+	var huella_circular_chica := GeometriaHuella.circulo(3.75, 24, true)
+	var aristas_circulo_chico := _aristas_exteriores_circulo(huella_circular_chica)
+	catalogo.append(_sala_poligonal("Sala circular compacta 7.5 m", 7.5, 7.5, 2.0, 34.0, huella_circular_chica, aristas_circulo_chico))
 	var huella_circular := GeometriaHuella.circulo(5.0, 32, true)
 	var aristas_circulo := _aristas_exteriores_circulo(huella_circular)
 	var circular := _sala_poligonal("Sala circular 10 m", 10.0, 10.0, 2.5, 58.0, huella_circular, aristas_circulo, 4.2)
@@ -163,6 +197,9 @@ static func crear(multiplicador_grandes: float = 1.0, multiplicador_abiertas: fl
 	var aristas_circulo_grande := _aristas_exteriores_circulo(huella_circular_grande)
 	var circular_grande := _sala_poligonal("Sala circular amplia 15 m", 15.0, 15.0, 3.0, 42.0, huella_circular_grande, aristas_circulo_grande)
 	catalogo.append(circular_grande)
+	var huella_circular_muy_grande := GeometriaHuella.circulo(10.0, 40, true)
+	var aristas_circulo_muy_grande := _aristas_exteriores_circulo(huella_circular_muy_grande)
+	catalogo.append(_sala_poligonal("Rotonda circular 20 m", 20.0, 20.0, 3.5, 20.0, huella_circular_muy_grande, aristas_circulo_muy_grande))
 	catalogo.append(_sala_poligonal("Sala triangular equilátera 5 m", 5.0, 4.33, 2.0, 20.0, PackedVector2Array([
 		Vector2(0, 0), Vector2(5, 0), Vector2(2.5, 4.33)
 	])))
@@ -172,6 +209,17 @@ static func crear(multiplicador_grandes: float = 1.0, multiplicador_abiertas: fl
 	catalogo.append(_sala_poligonal("Sala triangular 30-60-90", 8.66, 5.0, 2.0, 16.0, PackedVector2Array([
 		Vector2(0, 0), Vector2(8.66, 0), Vector2(0, 5)
 	])))
+	# Cuartos compactos disponibles en todas las alturas usadas por el catálogo.
+	# Los cuatro sockets dejan que el editor los conecte desde cualquier lado.
+	var alturas_sala_chica: Array[float] = [1.35, 3.2, 4.2, 8.0, 12.0]
+	for alto_chico in alturas_sala_chica:
+		var sockets_chicos := [
+			[Direcciones.Dir.NORTE, Vector3(1.25, 0, 0)],
+			[Direcciones.Dir.ESTE, Vector3(2.5, 0, 1.25)],
+			[Direcciones.Dir.SUR, Vector3(1.25, 0, 2.5)],
+			[Direcciones.Dir.OESTE, Vector3(0, 0, 1.25)]
+		]
+		catalogo.append(_sala("Sala compacta 2.5x2.5 · %.2f m" % alto_chico, 2.5, 2.5, 1.5, 10.0, sockets_chicos, alto_chico))
 	for definicion in catalogo:
 		if definicion.ancho_m >= 10.0 or definicion.largo_m >= 10.0:
 			definicion.peso *= multiplicador_grandes

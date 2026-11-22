@@ -1,0 +1,22 @@
+[gd_resource type="StandardMaterial3D" load_steps=6 format=3]
+
+[ext_resource type="Texture2D" id="Color" path="res://assets/texturas/CeilingTiles0013/tiles_0013_color_1k.jpg"]
+[ext_resource type="Texture2D" id="AO" path="res://assets/texturas/CeilingTiles0013/tiles_0013_ao_1k.jpg"]
+[ext_resource type="Texture2D" id="Height" path="res://assets/texturas/CeilingTiles0013/tiles_0013_height_1k.png"]
+[ext_resource type="Texture2D" id="Roughness" path="res://assets/texturas/CeilingTiles0013/tiles_0013_roughness_1k.jpg"]
+[ext_resource type="Texture2D" id="NormalGL" path="res://assets/texturas/CeilingTiles0013/tiles_0013_normal_opengl_1k.png"]
+
+[resource]
+albedo_color = Color(1, 0.96, 0.83, 1)
+albedo_texture = ExtResource("Color")
+roughness = 0.9
+roughness_texture = ExtResource("Roughness")
+roughness_texture_channel = 4
+normal_texture = ExtResource("NormalGL")
+normal_enabled = true
+heightmap_texture = ExtResource("Height")
+heightmap_scale = 0.015
+heightmap_enabled = true
+ao_enabled = true
+ao_texture = ExtResource("AO")
+uv1_scale = Vector3(2, 2, 1)

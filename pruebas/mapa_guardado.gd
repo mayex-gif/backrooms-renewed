@@ -32,6 +32,7 @@ func _ready() -> void:
 	var sockets_instancia: Array[Array] = []
 	var huellas: Array[PackedVector2Array] = []
 	var rectangulos: Array[Rect2] = []
+	var datos_salas: Array[Dictionary] = []
 	var ids: Array[int] = []
 	var posicion_fila := -1
 	for item in datos.salas:
@@ -51,6 +52,7 @@ func _ready() -> void:
 		var origen := Vector3(centro.x, 0, centro.y)
 		var origen_nodo := _origen_nodo(origen, definicion, giros)
 		definiciones.append(definicion)
+		datos_salas.append(item)
 		giros_salas.append(giros)
 		origenes.append(origen_nodo)
 		sockets_instancia.append(_crear_lista_sockets())
@@ -70,6 +72,9 @@ func _ready() -> void:
 	if solapes_guardados is Dictionary:
 		estados_solape = solapes_guardados
 	var plan_solapes: Dictionary = PlanificadorSolapesScript.calcular(modulos, estados_solape)
+	var modos_luces: Dictionary = datos.get("modos_luces", {}) if datos.get("modos_luces", {}) is Dictionary else {}
+	var luces_manuales: Dictionary = datos.get("luces_manuales", {}) if datos.get("luces_manuales", {}) is Dictionary else {}
+	var luces_automaticas := bool(datos.get("luces_automaticas", true))
 	var exclusiones_piso: Array = []
 	var exclusiones_techo: Array = []
 	for i in definiciones.size():
@@ -101,6 +106,18 @@ func _ready() -> void:
 		instancia.set("alto_m", definicion.alto_m)
 		instancia.set("huella_local", definicion.obtener_huella_local())
 		instancia.set("columnas", definicion.columnas_locales)
+		instancia.set("columnas_tamanos", definicion.columnas_tamanos)
+		instancia.set("modos_luces_mapa", modos_luces)
+		instancia.set("luces_manuales_mapa", luces_manuales)
+		instancia.set("luces_automaticas", luces_automaticas)
+		var columnas_custom: Array[Vector3] = []
+		var tamanos_custom: Array[Vector2] = []
+		for columna in datos_salas[i].get("columnas", []):
+			if columna is Dictionary:
+				columnas_custom.append(Vector3(float(columna.get("x", 0.0)), 0.0, float(columna.get("z", 0.0))))
+				tamanos_custom.append(Vector2(float(columna.get("ancho", 0.5)), float(columna.get("largo", 0.5))))
+		instancia.set("columnas_adicionales", columnas_custom)
+		instancia.set("columnas_adicionales_tamanos", tamanos_custom)
 		instancia.set("zonas_suelo_excluidas", exclusiones_piso[i])
 		instancia.set("zonas_techo_excluidas", exclusiones_techo[i])
 		instancia.set("sockets", sockets_instancia[i])

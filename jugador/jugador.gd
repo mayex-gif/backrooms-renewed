@@ -10,14 +10,25 @@ extends CharacterBody3D
 @export var velocidad_noclip := 12.0
 @export var sensibilidad_mouse := 0.003
 @export var altura_ojos := 1.55
+@export var intervalo_parpadeo_min_s := 18.0
+@export var intervalo_parpadeo_max_s := 40.0
 
 @onready var cabeza: Node3D = $Cabeza
 @onready var colision: CollisionShape3D = $CollisionShape3D
-@onready var linterna: SpotLight3D = $Cabeza/LuzLinterna
+@onready var conjunto_linterna: Node3D = $Cabeza/Camera3D/ConjuntoLinterna
+@onready var modelo_linterna: Node3D = $Cabeza/Camera3D/ConjuntoLinterna/ModeloLinterna
+@onready var linterna: SpotLight3D = $Cabeza/Camera3D/ConjuntoLinterna/LuzLinterna
+@onready var timer_parpadeo: Timer = $TimerParpadeoLinterna
+@onready var animador_jugador: AnimationPlayer = _buscar_animador_jugador()
+var materiales_lente: Array[StandardMaterial3D] = []
 var gravedad: float = ProjectSettings.get_setting("physics/3d/default_gravity")
 var agachado := false
 var arrastrandose := false
 var modo_noclip := false
+var linterna_encendida := true
+var parpadeo_apagado := false
+var transiciones_parpadeo_restantes := 0
+var animacion_jugador_actual := ""
 ## Luz ambiente baja: la iluminación la dan los paneles del techo, no el ambiente.
 const ENERGIA_AMBIENTE := 0.025
 const MenuPausaScript = preload("res://sistema/menu_pausa.gd")
@@ -29,6 +40,12 @@ func _ready() -> void:
 	_configurar_controles()
 	_configurar_ambiente()
 	_aplicar_ajustes()
+	_conectar_linterna_a_mano()
+	timer_parpadeo.timeout.connect(_iniciar_parpadeo_linterna)
+	_preparar_materiales_lente()
+	_actualizar_luz_linterna()
+	_programar_parpadeo_linterna()
+	_actualizar_animacion_jugador("idle")
 	Ajustes.ajustes_cambiados.connect(_aplicar_ajustes)
 	Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
 
@@ -89,7 +106,8 @@ func _input(event: InputEvent) -> void:
 	if _panel_desarrollo_abierto():
 		return
 	if event.is_action_pressed("linterna"):
-		linterna.visible = not linterna.visible
+		linterna_encendida = not linterna_encendida
+		_actualizar_luz_linterna()
 	elif OS.is_debug_build() and event.is_action_pressed("alternar_noclip"):
 		modo_noclip = not modo_noclip
 		colision.set_deferred("disabled", modo_noclip)
@@ -125,6 +143,7 @@ func _physics_process(delta: float) -> void:
 			movimiento_libre = movimiento_libre.normalized()
 		global_position += movimiento_libre * velocidad_noclip * delta
 		velocity = Vector3.ZERO
+		_actualizar_animacion_jugador("idle")
 		return
 	if Input.is_action_just_pressed("agachar"):
 		if arrastrandose:
@@ -157,6 +176,127 @@ func _physics_process(delta: float) -> void:
 	velocity.x = direccion.x * velocidad if direccion else move_toward(velocity.x, 0.0, velocidad * 8.0 * delta)
 	velocity.z = direccion.z * velocidad if direccion else move_toward(velocity.z, 0.0, velocidad * 8.0 * delta)
 	move_and_slide()
+	var moviendose := entrada.length_squared() > 0.01 and Vector2(velocity.x, velocity.z).length_squared() > 0.01
+	var animacion := "idle"
+	if arrastrandose:
+		animacion = "crawl_idle" if not moviendose else "crawl_forward"
+	elif agachado:
+		animacion = "crouch_idle" if not moviendose else "crouch_walk"
+	elif moviendose:
+		animacion = "run" if Input.is_action_pressed("correr") else "walk"
+	_actualizar_animacion_jugador(animacion)
+
+func _buscar_animador_jugador() -> AnimationPlayer:
+	var pendientes: Array[Node] = [$ModeloJugador]
+	while not pendientes.is_empty():
+		var nodo: Node = pendientes.pop_back()
+		if nodo is AnimationPlayer:
+			return nodo as AnimationPlayer
+		for hijo in nodo.get_children():
+			pendientes.append(hijo)
+	return null
+
+func _conectar_linterna_a_mano() -> void:
+	var esqueleto := _buscar_esqueleto_jugador()
+	if esqueleto == null or esqueleto.find_bone("hand_r") < 0:
+		push_warning("No se encontró el hueso hand_r; la linterna queda montada a la cámara.")
+		return
+	var sujecion := BoneAttachment3D.new()
+	sujecion.name = "SujecionLinterna"
+	sujecion.bone_name = "hand_r"
+	esqueleto.add_child(sujecion)
+	conjunto_linterna.reparent(sujecion)
+	# En el GLB la linterna apunta por su eje +Y; este giro orienta el lente
+	# hacia el frente (-Z) y conserva la luz junto al modelo en la mano derecha.
+	conjunto_linterna.transform = Transform3D(Basis.from_euler(Vector3(-PI / 2.0, 0.0, 0.0)), Vector3(0.0, -0.07, 0.035))
+
+func _buscar_esqueleto_jugador() -> Skeleton3D:
+	var pendientes: Array[Node] = [$ModeloJugador]
+	while not pendientes.is_empty():
+		var nodo: Node = pendientes.pop_back()
+		if nodo is Skeleton3D:
+			return nodo as Skeleton3D
+		for hijo in nodo.get_children():
+			pendientes.append(hijo)
+	return null
+
+func _actualizar_animacion_jugador(nombre: String) -> void:
+	if animador_jugador == null:
+		return
+	var nombre_animacion := _resolver_nombre_animacion(nombre)
+	# Este personaje no trae ciclos de agachado ni de gateo. Si se incorpora
+	# luego un clip compatible, se seleccionará; mientras tanto usamos locomoción
+	# disponible para que el cuerpo no se congele al moverse en esas posturas.
+	if nombre_animacion.is_empty() and nombre.begins_with("crawl_"):
+		nombre_animacion = _resolver_nombre_animacion("idle" if nombre.ends_with("idle") else "walk")
+	if nombre_animacion.is_empty() and nombre.begins_with("crouch_"):
+		nombre_animacion = _resolver_nombre_animacion("walk" if nombre.ends_with("walk") else "idle")
+	if nombre_animacion.is_empty():
+		nombre_animacion = _resolver_nombre_animacion("idle")
+	if nombre_animacion.is_empty() or nombre_animacion == animacion_jugador_actual:
+		return
+	animacion_jugador_actual = nombre_animacion
+	var clip := animador_jugador.get_animation(nombre_animacion)
+	if clip != null:
+		clip.loop_mode = Animation.LOOP_LINEAR
+	animador_jugador.play(nombre_animacion, 0.18)
+
+func _resolver_nombre_animacion(nombre: String) -> String:
+	var candidatos := [nombre, "default_library/" + nombre]
+	for candidato in candidatos:
+		if animador_jugador.has_animation(candidato):
+			return candidato
+	for disponible in animador_jugador.get_animation_list():
+		var final_nombre := String(disponible).get_slice("/", -1).to_lower()
+		if final_nombre == nombre.to_lower():
+			return disponible
+	return ""
+
+func _programar_parpadeo_linterna() -> void:
+	var espera_minima := maxf(1.0, minf(intervalo_parpadeo_min_s, intervalo_parpadeo_max_s))
+	var espera_maxima := maxf(espera_minima, maxf(intervalo_parpadeo_min_s, intervalo_parpadeo_max_s))
+	timer_parpadeo.start(randf_range(espera_minima, espera_maxima))
+
+func _iniciar_parpadeo_linterna() -> void:
+	if not linterna_encendida:
+		_programar_parpadeo_linterna()
+		return
+	transiciones_parpadeo_restantes = randi_range(4, 8)
+	_alternar_parpadeo_linterna()
+
+func _alternar_parpadeo_linterna() -> void:
+	parpadeo_apagado = not parpadeo_apagado
+	transiciones_parpadeo_restantes -= 1
+	_actualizar_luz_linterna()
+	if transiciones_parpadeo_restantes > 0:
+		timer_parpadeo.start(randf_range(0.045, 0.12))
+		return
+	parpadeo_apagado = false
+	_actualizar_luz_linterna()
+	_programar_parpadeo_linterna()
+
+func _preparar_materiales_lente() -> void:
+	_recopilar_materiales_lente(modelo_linterna)
+
+func _recopilar_materiales_lente(nodo: Node) -> void:
+	if nodo is MeshInstance3D:
+		var malla := nodo as MeshInstance3D
+		if malla.mesh != null:
+			for superficie in malla.mesh.get_surface_count():
+				var material := malla.get_active_material(superficie) as StandardMaterial3D
+				if material == null or not material.emission_enabled:
+					continue
+				var copia := material.duplicate() as StandardMaterial3D
+				malla.set_surface_override_material(superficie, copia)
+				materiales_lente.append(copia)
+	for hijo in nodo.get_children():
+		_recopilar_materiales_lente(hijo)
+
+func _actualizar_luz_linterna() -> void:
+	var visible := linterna_encendida and not parpadeo_apagado
+	linterna.visible = visible
+	for material in materiales_lente:
+		material.emission_energy_multiplier = 1.0 if visible else 0.0
 
 func _panel_desarrollo_abierto() -> bool:
 	# El menú de pausa también detiene al jugador y a la cámara.

@@ -32,6 +32,10 @@ var _estados_conexion: Dictionary = {}
 var _estados_solape: Dictionary = {}
 ## Modo de luz por posición global de luminaria en este mapa.
 var _modos_luces: Dictionary = {}
+## Baldosas cuyo modo se eligió explícitamente en la vista de techo.
+var _luces_manuales: Dictionary = {}
+var _luces_automaticas := true
+var _check_luces_automaticas: CheckButton
 var _siguiente_id := 0
 var _hay_cambios := false
 var _vista_techo := false
@@ -51,6 +55,10 @@ var _boton_inicio: Button
 ## Punto de inicio del jugador: {"x", "z", "angulo"} (grados; 0 = hacia +X, 90 = hacia +Z). Vacío: automático.
 var _inicio: Dictionary = {}
 var _modo_inicio := false
+var _modo_columnas := false
+var _tamano_columna := Vector2(0.5, 0.5)
+var _spin_columna_ancho: SpinBox
+var _spin_columna_largo: SpinBox
 var _arrastre_inicio := false
 var _cursor_mapa := Vector2.ZERO
 var _cursor_en_lienzo := false
@@ -202,7 +210,49 @@ func _crear_panel_lateral() -> Control:
 	_boton_borrar = _agregar_boton(acciones, "Eliminar", _borrar_seleccion, "Elimina la sala (Supr o clic derecho).")
 	_boton_deseleccionar = _agregar_boton(acciones, "Soltar", _deseleccionar, "Deja de seleccionar la sala (Esc).")
 	columna.add_child(acciones)
+	columna.add_child(HSeparator.new())
+	columna.add_child(_titulo_seccion("4 · Columnas"))
+	var boton_columnas := Button.new()
+	boton_columnas.text = "Agregar columnas"
+	boton_columnas.toggle_mode = true
+	boton_columnas.tooltip_text = "Seleccioná una sala y activá el modo para colocar columnas con click. Clic derecho elimina la más cercana."
+	boton_columnas.toggled.connect(func(activo: bool) -> void:
+		_modo_columnas = activo
+		_estado.text = "Columnas: click para agregar, clic derecho para quitar." if activo else "Modo de columnas desactivado."
+		_lienzo.queue_redraw()
+	)
+	columna.add_child(boton_columnas)
+	var fila_tamanos := HBoxContainer.new()
+	_spin_columna_ancho = SpinBox.new()
+	_spin_columna_ancho.min_value = 0.2
+	_spin_columna_ancho.max_value = 3.0
+	_spin_columna_ancho.step = 0.1
+	_spin_columna_ancho.prefix = "Ancho "
+	_spin_columna_ancho.value = _tamano_columna.x
+	_spin_columna_ancho.value_changed.connect(func(valor: float) -> void: _tamano_columna.x = valor)
+	fila_tamanos.add_child(_spin_columna_ancho)
+	_spin_columna_largo = SpinBox.new()
+	_spin_columna_largo.min_value = 0.2
+	_spin_columna_largo.max_value = 3.0
+	_spin_columna_largo.step = 0.1
+	_spin_columna_largo.prefix = "Largo "
+	_spin_columna_largo.value = _tamano_columna.y
+	_spin_columna_largo.value_changed.connect(func(valor: float) -> void: _tamano_columna.y = valor)
+	fila_tamanos.add_child(_spin_columna_largo)
+	columna.add_child(fila_tamanos)
+	columna.add_child(HSeparator.new())
+	columna.add_child(_titulo_seccion("5 · Luminarias"))
+	_check_luces_automaticas = CheckButton.new()
+	_check_luces_automaticas.text = "Generar luces automáticamente"
+	_check_luces_automaticas.button_pressed = _luces_automaticas
+	_check_luces_automaticas.tooltip_text = "Desactivado: solo se crean luminarias en las placas que marques manualmente en Vista de techo. Reduce la cantidad de luces y su costo de rendimiento."
+	_check_luces_automaticas.toggled.connect(_cambiar_luces_automaticas)
+	columna.add_child(_check_luces_automaticas)
 	return panel
+
+func _cambiar_luces_automaticas(activas: bool) -> void:
+	_luces_automaticas = activas
+	_cambio_mapa("Generación automática de luces %s." % ("activada" if activas else "desactivada; solo se usarán las placas seleccionadas manualmente"))
 
 func _titulo_seccion(texto: String) -> Label:
 	var etiqueta := Label.new()
@@ -301,7 +351,7 @@ func _duplicar_seleccion() -> void:
 	var angulo := float(original.angulo)
 	var deseado := Vector2(float(original.x) + _rect_sala(original).size.x, float(original.z)).snapped(Vector2(0.5, 0.5))
 	var centro := _centro_ajustado(deseado, definicion, angulo, -1)
-	var copia := {"id": _siguiente_id, "tipo": String(original.tipo), "x": centro.x, "z": centro.y, "angulo": angulo}
+	var copia := {"id": _siguiente_id, "tipo": String(original.tipo), "x": centro.x, "z": centro.y, "angulo": angulo, "columnas": original.get("columnas", []).duplicate(true)}
 	_siguiente_id += 1
 	_salas.append(copia)
 	_seleccion_sala = _salas.size() - 1
@@ -343,7 +393,7 @@ func _encuadrar() -> void:
 
 # ---------------------------------------------------------------- historial
 func _foto_mapa() -> String:
-	return JSON.stringify({"salas": _salas, "conexiones": _estados_conexion, "solapes": _estados_solape, "luces": _modos_luces, "inicio": _inicio, "siguiente": _siguiente_id})
+	return JSON.stringify({"salas": _salas, "conexiones": _estados_conexion, "solapes": _estados_solape, "luces": _modos_luces, "luces_manuales": _luces_manuales, "luces_automaticas": _luces_automaticas, "inicio": _inicio, "siguiente": _siguiente_id})
 
 func _registrar_historial() -> void:
 	if _restaurando:
@@ -381,10 +431,14 @@ func _restaurar_foto(foto: String) -> void:
 	_restaurando = true
 	_salas.clear()
 	for fila in datos.get("salas", []):
-		_salas.append({"id": int(fila.id), "tipo": String(fila.tipo), "x": float(fila.x), "z": float(fila.z), "angulo": float(fila.angulo)})
+		_salas.append({"id": int(fila.id), "tipo": String(fila.tipo), "x": float(fila.x), "z": float(fila.z), "angulo": float(fila.angulo), "columnas": fila.get("columnas", []).duplicate(true)})
 	_estados_conexion = (datos.get("conexiones", {}) as Dictionary).duplicate()
 	_estados_solape = (datos.get("solapes", {}) as Dictionary).duplicate()
 	_modos_luces = (datos.get("luces", {}) as Dictionary).duplicate()
+	_luces_manuales = (datos.get("luces_manuales", {}) as Dictionary).duplicate(true)
+	_luces_automaticas = bool(datos.get("luces_automaticas", true))
+	if _check_luces_automaticas != null:
+		_check_luces_automaticas.set_pressed_no_signal(_luces_automaticas)
 	_inicio = (datos.get("inicio", {}) as Dictionary).duplicate()
 	_siguiente_id = int(datos.get("siguiente", _siguiente_id))
 	_seleccion_sala = -1
@@ -407,6 +461,11 @@ func _limpiar() -> void:
 	_desconocidas.clear()
 	_estados_conexion.clear()
 	_estados_solape.clear()
+	_modos_luces.clear()
+	_luces_manuales.clear()
+	_luces_automaticas = true
+	if _check_luces_automaticas != null:
+		_check_luces_automaticas.set_pressed_no_signal(true)
 	_inicio = {}
 	_cambio_mapa("Mapa limpio.")
 
@@ -450,9 +509,9 @@ func _guardar_actual(marcar_guardado: bool = false) -> void:
 
 ## Texto JSON del mapa actual. Conserva los módulos de tipo desconocido.
 func _serializar() -> String:
-	var filas: Array = _salas.map(func(s: Dictionary) -> Dictionary: return {"id": s.id, "tipo": s.tipo, "x": s.x, "z": s.z, "angulo": s.angulo})
+	var filas: Array = _salas.map(func(s: Dictionary) -> Dictionary: return {"id": s.id, "tipo": s.tipo, "x": s.x, "z": s.z, "angulo": s.angulo, "columnas": s.get("columnas", []).duplicate(true)})
 	filas.append_array(_desconocidas)
-	return JSON.stringify({"version": 5, "conexiones": _estados_conexion, "solapes": _estados_solape, "modos_luces": _modos_luces, "inicio": _inicio, "salas": filas}, "\t")
+	return JSON.stringify({"version": 6, "conexiones": _estados_conexion, "solapes": _estados_solape, "modos_luces": _modos_luces, "luces_manuales": _luces_manuales, "luces_automaticas": _luces_automaticas, "inicio": _inicio, "salas": filas}, "\t")
 
 func _actualizar_guardados() -> void:
 	if _lista_guardados == null:
@@ -490,6 +549,7 @@ func _cargar_ruta(ruta: String) -> void:
 	_estados_conexion.clear()
 	_estados_solape.clear()
 	_modos_luces.clear()
+	_luces_manuales.clear()
 	var estados_guardados: Variant = datos.get("conexiones", {})
 	if estados_guardados is Dictionary:
 		for clave in estados_guardados:
@@ -501,6 +561,11 @@ func _cargar_ruta(ruta: String) -> void:
 	var modos_luces_guardados: Variant = datos.get("modos_luces", {})
 	if modos_luces_guardados is Dictionary:
 		_modos_luces = modos_luces_guardados.duplicate(true)
+	var manuales_guardadas: Variant = datos.get("luces_manuales", {})
+	_luces_manuales = manuales_guardadas.duplicate(true) if manuales_guardadas is Dictionary else {}
+	_luces_automaticas = bool(datos.get("luces_automaticas", true))
+	if _check_luces_automaticas != null:
+		_check_luces_automaticas.set_pressed_no_signal(_luces_automaticas)
 	_inicio = {}
 	var inicio_guardado: Variant = datos.get("inicio", {})
 	if inicio_guardado is Dictionary and inicio_guardado.has("x") and inicio_guardado.has("z"):
@@ -523,7 +588,7 @@ func _cargar_ruta(ruta: String) -> void:
 				var ancho := definicion.ancho_m if cuarto % 2 == 0 else definicion.largo_m
 				var largo := definicion.largo_m if cuarto % 2 == 0 else definicion.ancho_m
 				centro += Vector2(ancho, largo) * 0.5
-			_salas.append({"id": id_fila, "tipo": tipo, "x": centro.x, "z": centro.y, "angulo": angulo})
+			_salas.append({"id": id_fila, "tipo": tipo, "x": centro.x, "z": centro.y, "angulo": angulo, "columnas": fila.get("columnas", []).duplicate(true)})
 		else:
 			_desconocidas.append(fila)
 		posicion_fila += 1
@@ -565,9 +630,9 @@ func _alternar_vista_techo() -> void:
 	_vista_techo = not _vista_techo
 	_boton_vista_techo.text = "Volver al plano" if _vista_techo else "Vista de techo"
 	if _vista_techo:
-		_estado.text = "Techo: cada cuadrado representa una placa. Click en una luz para alternar encendida, intermitente y averiada."
-		if _modos_luces.is_empty():
-			_estado.text += " Las luces se muestran tras abrir el mapa 3D una vez."
+		_estado.text = "Techo: click en una placa para alternar entre normal, encendida, intermitente y averiada."
+		if not _luces_automaticas:
+			_estado.text += " La generación automática está apagada; solo funcionarán los paneles marcados manualmente."
 	else:
 		_estado.text = "Plano de salas."
 	_lienzo.queue_redraw()
@@ -648,6 +713,13 @@ func _entrada_lienzo(evento: InputEvent) -> void:
 			if _vista_techo:
 				_cambiar_estado_luz_techo(punto_mapa)
 				return
+			if _modo_columnas:
+				var sala_clic := _indice_sala_en(punto_mapa)
+				if sala_clic >= 0:
+					_seleccion_sala = sala_clic
+				if _seleccion_sala >= 0:
+					_agregar_columna_en(punto_mapa)
+				return
 			var clave_solape := _segmento_solape_en(punto_mapa)
 			if not clave_solape.is_empty():
 				var plan_actual: Dictionary = PlanificadorSolapesScript.calcular(_modulos_para_conexiones(), _estados_solape)
@@ -673,7 +745,12 @@ func _entrada_lienzo(evento: InputEvent) -> void:
 				_actualizar_rotacion_visible()
 				_colocar(evento.position)
 		elif evento.pressed and evento.button_index == MOUSE_BUTTON_RIGHT:
-			if not _vista_techo:
+			if _modo_columnas:
+				var sala_clic := _indice_sala_en(_punto_mapa(evento.position))
+				if sala_clic >= 0:
+					_seleccion_sala = sala_clic
+				_quitar_columna_en(_punto_mapa(evento.position))
+			elif not _vista_techo:
 				_borrar(evento.position)
 		_lienzo.queue_redraw()
 
@@ -1092,6 +1169,7 @@ func _dibujar() -> void:
 		_lienzo.draw_colored_polygon(poligono, color)
 		if _vista_techo:
 			_dibujar_tiles_techo(sala, definicion, deg_to_rad(float(sala.get("angulo", 0.0))), centro)
+		_dibujar_columnas_personalizadas(sala, definicion, centro)
 		for e in poligono.size():
 			var color_borde := Color(0.30, 0.85, 1.0) if i == _seleccion_sala else Color(0.83, 0.79, 0.62)
 			_lienzo.draw_line(poligono[e], poligono[(e + 1) % poligono.size()], color_borde, 3.0 if i == _seleccion_sala else 2.0)
@@ -1201,18 +1279,24 @@ func _dibujar_tiles_techo(sala: Dictionary, definicion: SalaDef, angulo: float, 
 	var huella := definicion.obtener_huella_local()
 	var limites := GeometriaHuella.limites(huella)
 	var centro_local := limites.get_center()
-	for x in ceili(limites.size.x / TAM_TILE):
-		for z in ceili(limites.size.y / TAM_TILE):
-			var x0 := limites.position.x + x * TAM_TILE
-			var z0 := limites.position.y + z * TAM_TILE
-			var ancho_tile := minf(TAM_TILE, limites.end.x - x0)
-			var largo_tile := minf(TAM_TILE, limites.end.y - z0)
+	var columnas_tiles := maxi(1, ceili(limites.size.x / TAM_TILE))
+	var filas_tiles := maxi(1, ceili(limites.size.y / TAM_TILE))
+	var origen_x := limites.position.x + (limites.size.x - columnas_tiles * TAM_TILE) * 0.5
+	var origen_z := limites.position.y + (limites.size.y - filas_tiles * TAM_TILE) * 0.5
+	for x in columnas_tiles:
+		for z in filas_tiles:
+			var x0 := origen_x + x * TAM_TILE
+			var z0 := origen_z + z * TAM_TILE
+			var ancho_tile := TAM_TILE
+			var largo_tile := TAM_TILE
 			var celda := GeometriaHuella.rectangulo(ancho_tile, largo_tile, Vector2(x0 + ancho_tile * 0.5, z0 + largo_tile * 0.5))
 			var piezas := GeometriaHuella.intersecciones(celda, huella)
 			var centro_local_tile := Vector2(x0 + ancho_tile * 0.5, z0 + largo_tile * 0.5)
 			var centro_mundo := Vector2(sala.x, sala.z) + (centro_local_tile - centro_local).rotated(angulo)
 			var id_luz := _id_luminaria(centro_mundo)
 			var modo_luz := int(_modos_luces.get(id_luz, -1))
+			if not _luces_automaticas and not _luces_manuales.has(id_luz):
+				modo_luz = -1
 			var color_tile := Color(0.44, 0.44, 0.41)
 			if modo_luz == 0:
 				color_tile = Color(0.82, 0.79, 0.66)
@@ -1239,17 +1323,19 @@ func _dibujar_tiles_techo(sala: Dictionary, definicion: SalaDef, angulo: float, 
 func _cambiar_estado_luz_techo(punto_mapa: Vector2) -> void:
 	var id := _luz_techo_en(punto_mapa)
 	if id.is_empty():
-		_estado.text = "Ese tile no tiene una luminaria para cambiar."
-		if _modos_luces.is_empty():
-			_estado.text += " Abrí Jugar una vez para cargar las luminarias de este mapa."
+		_estado.text = "No hay una placa válida bajo el cursor."
 		return
-	var modo := (int(_modos_luces.get(id, 0)) + 1) % 3
+	var actual := int(_modos_luces.get(id, -1))
+	if not _luces_automaticas and not _luces_manuales.has(id):
+		actual = -1
+	var modo := 0 if actual == -1 else (actual + 1 if actual < 2 else -1)
 	_modos_luces[id] = modo
+	_luces_manuales[id] = true
 	_hay_cambios = true
 	_guardar_actual()
 	_registrar_historial()
-	var estados := ["encendida", "intermitente", "averiada"]
-	_estado.text = "Luminaria %s: %s." % [id, estados[modo]]
+	var estados := ["encendida", "intermitente", "averiada", "placa normal"]
+	_estado.text = "Panel %s: %s." % [id, "placa normal" if modo < 0 else estados[modo]]
 	_lienzo.queue_redraw()
 
 func _luz_techo_en(punto_mapa: Vector2) -> String:
@@ -1262,18 +1348,20 @@ func _luz_techo_en(punto_mapa: Vector2) -> String:
 		var limites := GeometriaHuella.limites(huella)
 		var centro_local := limites.get_center()
 		var angulo := deg_to_rad(float(sala.get("angulo", 0.0)))
-		for x in ceili(limites.size.x / TAM_TILE):
-			for z in ceili(limites.size.y / TAM_TILE):
-				var x0 := limites.position.x + x * TAM_TILE
-				var z0 := limites.position.y + z * TAM_TILE
-				var ancho_tile := minf(TAM_TILE, limites.end.x - x0)
-				var largo_tile := minf(TAM_TILE, limites.end.y - z0)
+		var columnas_tiles := maxi(1, ceili(limites.size.x / TAM_TILE))
+		var filas_tiles := maxi(1, ceili(limites.size.y / TAM_TILE))
+		var origen_x := limites.position.x + (limites.size.x - columnas_tiles * TAM_TILE) * 0.5
+		var origen_z := limites.position.y + (limites.size.y - filas_tiles * TAM_TILE) * 0.5
+		for x in columnas_tiles:
+			for z in filas_tiles:
+				var x0 := origen_x + x * TAM_TILE
+				var z0 := origen_z + z * TAM_TILE
+				var ancho_tile := TAM_TILE
+				var largo_tile := TAM_TILE
 				var celda := GeometriaHuella.rectangulo(ancho_tile, largo_tile, Vector2(x0 + ancho_tile * 0.5, z0 + largo_tile * 0.5))
 				var centro_local_tile := Vector2(x0 + ancho_tile * 0.5, z0 + largo_tile * 0.5)
 				var centro_mundo := Vector2(sala.x, sala.z) + (centro_local_tile - centro_local).rotated(angulo)
 				var id := _id_luminaria(centro_mundo)
-				if not _modos_luces.has(id):
-					continue
 				var piezas := GeometriaHuella.intersecciones(celda, huella)
 				for pieza in piezas:
 					var poligono: Array[Vector2] = []
@@ -1289,6 +1377,67 @@ func _luz_techo_en(punto_mapa: Vector2) -> String:
 
 func _id_luminaria(posicion: Vector2) -> String:
 	return "X %.2f · Z %.2f" % [posicion.x, posicion.y]
+
+func _dibujar_columnas_personalizadas(sala: Dictionary, definicion: SalaDef, centro_lienzo: Vector2) -> void:
+	var limites := GeometriaHuella.limites(definicion.obtener_huella_local())
+	var centro_local: Vector2 = limites.get_center()
+	var giro := deg_to_rad(float(sala.get("angulo", 0.0)))
+	for columna in sala.get("columnas", []):
+		if not columna is Dictionary:
+			continue
+		var mitad := Vector2(float(columna.get("ancho", 0.5)), float(columna.get("largo", 0.5))) * 0.5
+		var local := Vector2(float(columna.get("x", 0.0)), float(columna.get("z", 0.0)))
+		var centro_mundo: Vector2 = Vector2(float(sala.get("x", 0.0)), float(sala.get("z", 0.0)))
+		var esquinas: Array[Vector2] = [Vector2(-mitad.x, -mitad.y), Vector2(mitad.x, -mitad.y), Vector2(mitad.x, mitad.y), Vector2(-mitad.x, mitad.y)]
+		var poligono := PackedVector2Array()
+		for esquina in esquinas:
+			var mundo: Vector2 = centro_mundo + (local + esquina - centro_local).rotated(giro)
+			poligono.append(centro_lienzo + mundo * _escala)
+		_lienzo.draw_colored_polygon(poligono, Color(0.30, 0.24, 0.20, 0.95))
+		_lienzo.draw_polyline(PackedVector2Array([poligono[0],poligono[1],poligono[2],poligono[3],poligono[0]]), Color(1.0,0.72,0.35), 2.0)
+
+func _agregar_columna_en(punto_mapa: Vector2) -> void:
+	if _seleccion_sala < 0 or _seleccion_sala >= _salas.size():
+		_estado.text = "Seleccioná una sala antes de colocar columnas."
+		return
+	var sala: Dictionary = _salas[_seleccion_sala]
+	var definicion := _catalogo[_indice_tipo(String(sala.tipo))]
+	var limites := GeometriaHuella.limites(definicion.obtener_huella_local())
+	var local := (punto_mapa - Vector2(sala.x, sala.z)).rotated(-deg_to_rad(float(sala.get("angulo",0.0)))) + limites.get_center()
+	var mitad := _tamano_columna * 0.5
+	for esquina in [Vector2(-mitad.x,-mitad.y), Vector2(mitad.x,-mitad.y), Vector2(mitad.x,mitad.y), Vector2(-mitad.x,mitad.y)]:
+		if not GeometriaHuella.contiene(definicion.obtener_huella_local(), local + esquina):
+			_estado.text = "La columna debe quedar completamente dentro de la sala."
+			return
+	var lista: Array = sala.get("columnas", []).duplicate(true)
+	for existente in lista:
+		var distancia := local.distance_to(Vector2(float(existente.get("x",0.0)), float(existente.get("z",0.0))))
+		if distancia < maxf(_tamano_columna.length(), Vector2(float(existente.get("ancho",0.5)), float(existente.get("largo",0.5))).length()) * 0.5:
+			_estado.text = "La columna se superpone con otra."
+			return
+	lista.append({"x": snappedf(local.x,0.05), "z": snappedf(local.y,0.05), "ancho": _tamano_columna.x, "largo": _tamano_columna.y})
+	sala["columnas"] = lista
+	_cambio_mapa("Columna agregada.")
+
+func _quitar_columna_en(punto_mapa: Vector2) -> void:
+	if _seleccion_sala < 0 or _seleccion_sala >= _salas.size():
+		return
+	var sala: Dictionary = _salas[_seleccion_sala]
+	var definicion := _catalogo[_indice_tipo(String(sala.tipo))]
+	var limites := GeometriaHuella.limites(definicion.obtener_huella_local())
+	var local := (punto_mapa - Vector2(sala.x, sala.z)).rotated(-deg_to_rad(float(sala.get("angulo",0.0)))) + limites.get_center()
+	var lista: Array = sala.get("columnas", []).duplicate(true)
+	var indice_cercano := -1
+	var distancia := 1.0
+	for i in lista.size():
+		var d := local.distance_to(Vector2(float(lista[i].get("x",0.0)),float(lista[i].get("z",0.0))))
+		if d < distancia:
+			distancia = d
+			indice_cercano = i
+	if indice_cercano >= 0:
+		lista.remove_at(indice_cercano)
+		sala["columnas"] = lista
+		_cambio_mapa("Columna eliminada.")
 
 func _segmento_solape_en(punto: Vector2) -> String:
 	var plan: Dictionary = PlanificadorSolapesScript.calcular(_modulos_para_conexiones(), _estados_solape)
@@ -1340,7 +1489,11 @@ func _firma_geometria(definicion: SalaDef) -> String:
 	for punto in definicion.obtener_huella_local():
 		puntos.append("%.3f,%.3f" % [punto.x, punto.y])
 	var columnas: Array[String] = []
-	for posicion in definicion.columnas_locales:
-		columnas.append("%.2f,%.2f,%.2f" % [posicion.x, posicion.y, posicion.z])
+	for indice in definicion.columnas_locales.size():
+		var posicion := definicion.columnas_locales[indice]
+		var tamano := Vector2(1.3, 1.3)
+		if indice < definicion.columnas_tamanos.size():
+			tamano = definicion.columnas_tamanos[indice]
+		columnas.append("%.2f,%.2f,%.2f:%.2f,%.2f" % [posicion.x, posicion.y, posicion.z, tamano.x, tamano.y])
 	columnas.sort()
 	return "%.2f|%.2f|%.2f|%s|%s" % [definicion.ancho_m, definicion.largo_m, definicion.alto_m, ";".join(puntos), ";".join(columnas)]

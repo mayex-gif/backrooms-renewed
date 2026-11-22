@@ -272,6 +272,7 @@ func _crear_mapa() -> void:
 		sala.set("alto_m", definicion.alto_m)
 		if not definicion.columnas_locales.is_empty():
 			sala.set("columnas", definicion.columnas_locales)
+			sala.set("columnas_tamanos", definicion.columnas_tamanos)
 		sala.set("semilla_ambiente", 20261118 + instancias.size() * 7919)
 		sala.position = plano.origen
 		var sockets_sala: Array[SocketDef] = []

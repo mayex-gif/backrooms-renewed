@@ -8,6 +8,13 @@ extends Node3D
 @export var sockets: Array[SocketDef] = []
 @export var semilla_ambiente := 1
 @export var columnas: Array[Vector3] = []
+@export var columnas_tamanos: Array[Vector2] = []
+## Columnas colocadas desde el editor; no se ajustan a la retícula automática.
+@export var columnas_adicionales: Array[Vector3] = []
+@export var columnas_adicionales_tamanos: Array[Vector2] = []
+@export var modos_luces_mapa: Dictionary = {}
+@export var luces_manuales_mapa: Dictionary = {}
+@export var luces_automaticas := true
 ## Zonas locales donde otra sala ya aporta la superficie de piso o techo.
 @export var zonas_suelo_excluidas: Array = []
 @export var zonas_techo_excluidas: Array = []
@@ -218,15 +225,22 @@ func _cruz2d(a: Vector2, b: Vector2) -> float:
 	return a.x * b.y - a.y * b.x
 
 func _crear_columnas() -> void:
-	var usadas: Array[Vector2] = []
+	var usadas: Array[Vector3] = []
+	var tamanos_usados: Array[Vector2] = []
 	for indice in columnas.size():
 		var columna := StaticBody3D.new()
 		columna.name = "Columna_%02d" % indice
 		var base := Vector2(columnas[indice].x, columnas[indice].z)
-		var posicion_xz := _buscar_posicion_columna_sin_luz(base, usadas)
-		usadas.append(posicion_xz)
+		var huella_columna := Vector2(1.3, 1.3)
+		if indice < columnas_tamanos.size():
+			huella_columna = columnas_tamanos[indice]
+		huella_columna.x = clampf(huella_columna.x, 0.2, ancho_m)
+		huella_columna.y = clampf(huella_columna.y, 0.2, largo_m)
+		var posicion_xz := _buscar_posicion_columna_sin_luz(base, usadas, tamanos_usados, huella_columna)
+		usadas.append(Vector3(posicion_xz.x, 0, posicion_xz.y))
+		tamanos_usados.append(huella_columna)
 		columna.position = Vector3(posicion_xz.x, alto_m * 0.5, posicion_xz.y)
-		var tamano := Vector3(1.3, alto_m, 1.3)
+		var tamano := Vector3(huella_columna.x, alto_m, huella_columna.y)
 		var colision := CollisionShape3D.new()
 		var forma := BoxShape3D.new()
 		forma.size = tamano
@@ -238,29 +252,63 @@ func _crear_columnas() -> void:
 		visual.mesh = malla
 		columna.add_child(visual)
 		add_child(columna)
+	for indice in columnas_adicionales.size():
+		var posicion := columnas_adicionales[indice]
+		var tamano := Vector2(0.5, 0.5) if indice >= columnas_adicionales_tamanos.size() else columnas_adicionales_tamanos[indice]
+		_crear_columna_fija("ColumnaEditor_%02d" % indice, Vector2(posicion.x, posicion.z), tamano)
 
-func _buscar_posicion_columna_sin_luz(base: Vector2, usadas: Array[Vector2]) -> Vector2:
+func _crear_columna_fija(nombre: String, base: Vector2, huella_columna: Vector2) -> void:
+	var columna := StaticBody3D.new()
+	columna.name = nombre
+	columna.position = Vector3(base.x, alto_m * 0.5, base.y)
+	var tamano := Vector3(huella_columna.x, alto_m, huella_columna.y)
+	var forma := BoxShape3D.new()
+	forma.size = tamano
+	var colision := CollisionShape3D.new()
+	colision.shape = forma
+	columna.add_child(colision)
+	var visual := MeshInstance3D.new()
+	var malla := BoxMesh.new()
+	malla.size = tamano
+	visual.mesh = malla
+	columna.add_child(visual)
+	add_child(columna)
+
+func _buscar_posicion_columna_sin_luz(base: Vector2, usadas: Array[Vector3], tamanos_usados: Array[Vector2], tamano_columna: Vector2) -> Vector2:
 	var tam_tile := 1.5
-	var origen_grilla := GeometriaHuella.limites(_huella()).position
+	var limites_grilla := GeometriaHuella.limites(_huella())
+	var cantidad_x := maxi(1, ceili(limites_grilla.size.x / tam_tile))
+	var cantidad_z := maxi(1, ceili(limites_grilla.size.y / tam_tile))
+	var origen_grilla := limites_grilla.position + (limites_grilla.size - Vector2(cantidad_x, cantidad_z) * tam_tile) * 0.5
 	var fase_x := 1
 	var fase_z := 1
 	var mejor := base
 	var mejor_distancia := INF
-	for x in ceili(ancho_m / tam_tile):
-		for z in ceili(largo_m / tam_tile):
+	for x in cantidad_x:
+		for z in cantidad_z:
 			var es_posicion_luz := posmod(x - fase_x, 3) == 0 and posmod(z - fase_z, 3) == 0
 			if es_posicion_luz:
 				continue
 			var candidata := origen_grilla + Vector2((x + 0.5) * tam_tile, (z + 0.5) * tam_tile)
-			if candidata.x > ancho_m - 0.65 or candidata.y > largo_m - 0.65:
+			if candidata.x < tamano_columna.x * 0.5 or candidata.y < tamano_columna.y * 0.5:
 				continue
-			if not GeometriaHuella.contiene(_huella(), candidata):
+			if candidata.x > ancho_m - tamano_columna.x * 0.5 or candidata.y > largo_m - tamano_columna.y * 0.5:
 				continue
-			if _cerca_de_puerta(candidata):
+			var dentro_huella := true
+			for esquina in [Vector2(-tamano_columna.x, -tamano_columna.y) * 0.5, Vector2(tamano_columna.x, -tamano_columna.y) * 0.5, Vector2(tamano_columna.x, tamano_columna.y) * 0.5, Vector2(-tamano_columna.x, tamano_columna.y) * 0.5]:
+				if not GeometriaHuella.contiene(_huella(), candidata + esquina):
+					dentro_huella = false
+					break
+			if not dentro_huella:
+				continue
+			if _cerca_de_puerta(candidata, maxf(tamano_columna.x, tamano_columna.y) * 0.5):
 				continue
 			var ocupada := false
-			for usada in usadas:
-				if candidata.distance_to(usada) < 1.8:
+			for indice_usada in usadas.size():
+				var usada := Vector2(usadas[indice_usada].x, usadas[indice_usada].z)
+				var radio_columna := maxf(tamano_columna.x, tamano_columna.y) * 0.5
+				var radio_usada := maxf(tamanos_usados[indice_usada].x, tamanos_usados[indice_usada].y) * 0.5
+				if candidata.distance_to(usada) < radio_columna + radio_usada + 0.35:
 					ocupada = true
 					break
 			if ocupada:
@@ -271,9 +319,9 @@ func _buscar_posicion_columna_sin_luz(base: Vector2, usadas: Array[Vector2]) -> 
 				mejor_distancia = distancia
 	return mejor
 
-func _cerca_de_puerta(punto: Vector2) -> bool:
+func _cerca_de_puerta(punto: Vector2, radio_columna: float = 0.65) -> bool:
 	for socket in sockets:
-		var margen := socket.ancho * 0.5 + 0.7
+		var margen := socket.ancho * 0.5 + radio_columna
 		var huella := _huella()
 		for arista in huella.size():
 			if not _socket_en_arista(socket, arista):
@@ -293,28 +341,28 @@ func _crear_techo_modular() -> void:
 	rng.seed = semilla_ambiente
 	var tam_tile := 1.5
 	var limites := GeometriaHuella.limites(_huella())
-	var columnas_tiles := ceili(limites.size.x / tam_tile)
-	var filas_tiles := ceili(limites.size.y / tam_tile)
+	var columnas_tiles := maxi(1, ceili(limites.size.x / tam_tile))
+	var filas_tiles := maxi(1, ceili(limites.size.y / tam_tile))
+	var origen_x := limites.position.x + (limites.size.x - columnas_tiles * tam_tile) * 0.5
+	var origen_z := limites.position.y + (limites.size.y - filas_tiles * tam_tile) * 0.5
 	# Cámara oscura superior: los huecos dejan ver estructura, no el cielo.
 	_crear_superficie_poligonal("Plenum superior", _huella(), zonas_techo_excluidas, alto_m + 0.02, 0.2)
 	for x in range(columnas_tiles + 1):
-		var px := limites.position.x + x * tam_tile
+		var px := origen_x + x * tam_tile
 		_crear_viga_techo(GeometriaHuella.rectangulo(0.07, limites.size.y, Vector2(px, limites.get_center().y)), alto_m + LuminariaScript.PLANO_ENCASTRE_Y + GROSOR_VIGA_TECHO * 0.5)
 	for z in range(filas_tiles + 1):
-		var pz := limites.position.y + z * tam_tile
+		var pz := origen_z + z * tam_tile
 		_crear_viga_techo(GeometriaHuella.rectangulo(limites.size.x, 0.07, Vector2(limites.get_center().x, pz)), alto_m + LuminariaScript.PLANO_ENCASTRE_Y + GROSOR_VIGA_TECHO * 0.5)
 	var luces_operativas := 0
 	for x in columnas_tiles:
 		for z in filas_tiles:
-			var x0 := limites.position.x + x * tam_tile
-			var z0 := limites.position.y + z * tam_tile
-			var ancho_tile := minf(tam_tile, limites.end.x - x0)
-			var largo_tile := minf(tam_tile, limites.end.y - z0)
+			var x0 := origen_x + x * tam_tile
+			var z0 := origen_z + z * tam_tile
+			var ancho_tile := tam_tile
+			var largo_tile := tam_tile
 			var rect_tile := GeometriaHuella.rectangulo(ancho_tile, largo_tile, Vector2(x0 + ancho_tile * 0.5, z0 + largo_tile * 0.5))
 			var centro := Vector3(x0 + ancho_tile * 0.5, alto_m + LuminariaScript.PLANO_ENCASTRE_Y + GROSOR_PLACA_TECHO * 0.5, z0 + largo_tile * 0.5)
 			var valor := rng.randf()
-			if valor < 0.065:
-				continue # Baldosa faltante.
 			var piezas := GeometriaHuella.intersecciones(rect_tile, _huella())
 			piezas = GeometriaHuella.restar_a_poligonos(piezas, zonas_techo_excluidas)
 			piezas = _sin_astillas(piezas)
@@ -323,6 +371,12 @@ func _crear_techo_modular() -> void:
 			var fase_x := 1
 			var fase_z := 1
 			var es_posicion_luz := posmod(x - fase_x, 3) == 0 and posmod(z - fase_z, 3) == 0
+			var posicion_global_luz := to_global(Vector3(centro.x, alto_m, centro.z))
+			var id_luz := "X %.2f · Z %.2f" % [posicion_global_luz.x, posicion_global_luz.z]
+			var modo_forzado := int(modos_luces_mapa.get(id_luz, -999))
+			var es_luz_manual := luces_manuales_mapa.has(id_luz)
+			if valor < 0.065 and modo_forzado == -999 and not es_luz_manual:
+				continue # Baldosa faltante si el editor no la fijó.
 			var area_tile_conservada := 0.0
 			for pieza in piezas:
 				area_tile_conservada += absf(GeometriaHuella.area_firmada(pieza))
@@ -333,10 +387,27 @@ func _crear_techo_modular() -> void:
 				and is_equal_approx(ancho_tile, tam_tile)
 				and is_equal_approx(largo_tile, tam_tile)
 			)
-			var crear_luminaria := es_posicion_luz and valor > 0.10 and tile_completo and piezas.size() == 1
+			var pieza_rectangular := false
+			var centro_visual := Vector2(centro.x, centro.z)
+			var ancho_visual := ancho_tile
+			var largo_visual := largo_tile
+			if piezas.size() == 1:
+				var limites_pieza := GeometriaHuella.limites(piezas[0])
+				var area_pieza := absf(GeometriaHuella.area_firmada(piezas[0]))
+				pieza_rectangular = absf(area_pieza - limites_pieza.size.x * limites_pieza.size.y) <= 0.01
+				if pieza_rectangular:
+					centro_visual = limites_pieza.get_center()
+					ancho_visual = limites_pieza.size.x
+					largo_visual = limites_pieza.size.y
+			var crear_luminaria := ((es_luz_manual and modo_forzado >= 0) or (luces_automaticas and not es_luz_manual and modo_forzado != -1 and es_posicion_luz and valor > 0.10)) and pieza_rectangular and (tile_completo or (es_luz_manual and modo_forzado >= 0))
 			if crear_luminaria:
-				_crear_tile(centro, ancho_tile, largo_tile, 0.0, 0.0, false)
-				if LuminariaScript.crear(self, Vector3(centro.x, alto_m + LuminariaScript.DESFASE_CENTRO_PANEL_Y, centro.z), ancho_tile - LuminariaScript.MARGEN_PLACA_RETICULA, largo_tile - LuminariaScript.MARGEN_PLACA_RETICULA, alto_m, rng):
+				var centro_panel := Vector3(centro_visual.x, alto_m + LuminariaScript.PLANO_ENCASTRE_Y + GROSOR_PLACA_TECHO * 0.5, centro_visual.y)
+				_crear_tile(centro_panel, ancho_visual, largo_visual, 0.0, 0.0, false)
+				var modo_inicial_forzado := modo_forzado if modo_forzado >= 0 else -1
+				var funciona := LuminariaScript.crear(self, Vector3(centro_visual.x, alto_m + LuminariaScript.DESFASE_CENTRO_PANEL_Y, centro_visual.y), ancho_visual - LuminariaScript.MARGEN_PLACA_RETICULA, largo_visual - LuminariaScript.MARGEN_PLACA_RETICULA, alto_m, rng, modo_inicial_forzado)
+				var luminaria_creada := get_child(get_child_count() - 1)
+				luminaria_creada.set_meta("id_editor", id_luz)
+				if funciona:
 					luces_operativas += 1
 			elif tile_rectangular_completo:
 				if not es_posicion_luz and valor > 0.93:

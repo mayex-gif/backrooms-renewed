@@ -93,6 +93,16 @@ misma lista de vértices. No se deben introducir triángulos solo en el editor:
 el catálogo, los sockets, el generador procedural y el constructor 3D deben
 usar el mismo contrato geométrico antes de publicarlos como piezas disponibles.
 
+La ampliación reciente del catálogo agrega galerías rectangulares alargadas,
+salas circulares de 7,5 y 20 m, otra sala abierta de 15 × 25 m con columnas
+de ancho y profundidad independientes, y salas compactas de 2,5 × 2,5 m. Estas
+últimas se ofrecen en las alturas modulares actuales: 1,35; 3,2; 4,2; 8 y 12 m.
+`SalaDef.columnas_tamanos` se alinea por índice con `columnas_locales`; si falta
+una medida, se conserva el tamaño legado de 1,3 × 1,3 m. El editor también
+permite agregar columnas personalizadas de ancho y largo independientes dentro
+de la huella de una sala; se guardan por sala en el JSON del mapa y se construyen
+en la partida. La revisión visual de estas piezas queda pendiente.
+
 La decisión de alcance es permitir solapes configurables en el editor para
 cualquier par de huellas; el generador procedural mantiene la colocación sin
 solapes automáticos. La conexión procedural sí debe aceptar sockets sobre
@@ -122,12 +132,15 @@ revisará junto con el editor 3D y la colocación a distintas cotas.
 
 ## Salas y techos
 
-El catálogo contiene 27 tipos entre salas de 5 × 5 m, variantes medianas,
-cámaras de 10 × 10 m, salas abiertas de hasta 15 × 20 m y un vestíbulo de
-20 × 15 m. Incluye pasillos, giros, cruces, bifurcaciones, cámaras altas,
-un pasaje bajo y una pieza circular.
+El catálogo combina pasillos, giros, cruces, bifurcaciones, salas medianas y
+abiertas, cámaras altas, un pasaje bajo, huellas circulares y triangulares, y
+variantes compactas de 2,5 × 2,5 m para las alturas modulares disponibles.
 
-Las salas modulares usan placas de 1,5 m. En posiciones normales, las caras
+Las salas modulares usan placas de 1,5 m. La retícula se centra respecto de los
+límites de la huella para repartir por igual los recortes perimetrales; las
+barras y los paneles usan ese mismo origen. La vista de techo del editor
+reproduce la misma retícula para que las celdas clicables correspondan con las
+placas generadas en 3D. En posiciones normales, las caras
 inferiores visibles de placas, luminarias y retícula coinciden a la misma altura
 respecto del piso. Las
 luminarias ocupan casi el tile completo y parten de una distribución cada tres
@@ -150,35 +163,48 @@ cara visible desde su lado exterior con el descarte de caras de Godot. Las
 placas ausentes siguen siendo huecos intencionales del cielorraso, cubiertos
 por el plenum superior.
 
-Cada foco se centra en su placa y proyecta una mancha cuadrada suave, con un
-semilado actual de 9,2 m en el piso (nominal 8 m, cono ampliado un 15 %). La
-energía local de base es 0,5. El alcance se calcula hasta las esquinas del
-cuadrado según la altura real de la sala; además, la atenuación pasa
-gradualmente de 2,0 en salas de 4,2 m a 1,2
-en salas de 12 m para que la luz siga llegando al piso. Cada luminaria añade
-un relleno Omni local de energía 0,045 y radio 2,4 m, sin sombras; acompaña el
-estado estable/intermitente/averiado del foco y da un rebote sutil a la pared
-cercana y al techo. El relleno amplio por sala queda desactivado para evitar
+Cada foco se centra en su placa y proyecta una mancha cuadrada, calculada para
+alcanzar las esquinas del piso según la altura real. El semilado, el borde y la
+atenuación se pueden cambiar en vivo. La configuración aceptada usa intensidad
+0,6, semilado 16,5 m y borde 0,74. Cada luminaria añade un rebote Omni local de
+energía 0,06, alcance 1,9 m y altura -0,04 m. El rebote lateral usa energía
+0,007, semilado 2,2 m y altura -0,07 m. Las placas apagadas usan gris 0,6. El
+relleno amplio por sala queda desactivado de forma predeterminada y se puede
+activar durante la prueba. Se pueden ajustar los parámetros de cada rebote.
 manchas en las paredes. El ambiente base actual es 0,025; SSIL depende de la
 opción de rebote en pantalla y SDFGI queda apagado. SSAO y Glow siguen activos.
 La linterna del jugador es
-independiente. El menú de pausa abre los
-ajustes de ambiente e intensidad. **Vista de techo** superpone
-las celdas de placas sobre el mismo plano del editor. Las luminarias tienen un
-color por estado y un clic alterna encendida, intermitente o averiada; los
-estados se guardan en el JSON del mapa. La primera vez hay que jugar el mapa una
-vez para registrar las posiciones reales de las luminarias. SSR sigue apagado
+independiente. El menú de pausa abre los ajustes de ambiente e intensidad.
+**Vista de techo** superpone
+las celdas de placas sobre el mismo plano del editor. Un clic recorre placa
+normal, luz encendida, intermitente, averiada y de nuevo placa normal; los
+estados se guardan en el JSON del mapa y se aplican al construir las salas de la
+partida. El editor incluye **Generar luces automáticamente**, activado por
+defecto para conservar la distribución procedural. Al desactivarlo, la partida
+solo crea luminarias en las placas modificadas manualmente; las demás placas
+quedan normales y se evita sumar luces de patrón a la selección del usuario.
+El ajuste y las selecciones manuales se guardan por mapa. SSR sigue apagado
 porque las superficies actuales son mates y no deberían reflejar el entorno.
-Los focos se conservan hasta 50 m de la cámara; no tienen tramo de desvanecimiento
-gradual con la configuración actual. Las sombras empiezan a desvanecerse a 50 m.
-La comprobación visual del borde cuadrado, la luz al pie de salas altas y la
-oscuridad entre focos queda pendiente.
+Los focos se conservan hasta 50 m de la cámara y las sombras empiezan a
+desvanecerse a 50 m. El usuario revisó y aprobó visualmente la configuración
+actual.
 Los ajustes de desarrollo también permiten reconstruir mapas compatibles con
 cantidad y pesos distintos.
+Desde ese mismo panel en pausa se puede ajustar en vivo la intensidad, forma,
+color, atenuación, tamaño, sombras y distancias del foco; emisión del panel;
+activación, energía, alcance, altura y atenuación de los rebotes locales,
+laterales y amplios por sala; gris de placas apagadas; y parámetros de
+parpadeo/fallas. Las probabilidades de falla e intermitencia se aplican a las
+luminarias nuevas. **Guardar iluminación** persiste los valores en
+`user://iluminacion.cfg`; se cargan al iniciar y afectan también a las luminarias
+de salas generadas después. La configuración aprobada se fijó también como
+valores iniciales del proyecto: intensidad 0,6; haz de semilado 16,5 m; rebote
+local 0,06; rebote lateral 0,007; relleno de sala desactivado y sin fallas ni
+parpadeos aleatorios.
 
-Se observaron anteriormente manchas en paredes cercanas. El relleno local nuevo
-se mantiene deliberadamente tenue y de alcance corto; queda pendiente comprobar
-visualmente que aclare la pared junto a la luminaria sin lavar la sala.
+Se observaron anteriormente manchas en paredes cercanas. Los rebotes y el foco
+se dejaron ajustables para poder afinar su apariencia desde el menú durante el
+recorrido visual.
 Los dinteles tienen una abertura de 2,45 m; se quitaron los marcos extra para
 evitar z-fighting.
 

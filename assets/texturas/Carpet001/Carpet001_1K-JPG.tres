@@ -1,0 +1,19 @@
+[gd_resource type="StandardMaterial3D" load_steps=5 format=3]
+
+[ext_resource type="Texture2D" id="Color" path="res://assets/texturas/Carpet001/Carpet001_1K-JPG_Color.jpg"]
+[ext_resource type="Texture2D" id="Displacement" path="res://assets/texturas/Carpet001/Carpet001_1K-JPG_Displacement.jpg"]
+[ext_resource type="Texture2D" id="Roughness" path="res://assets/texturas/Carpet001/Carpet001_1K-JPG_Roughness.jpg"]
+[ext_resource type="Texture2D" id="NormalGL" path="res://assets/texturas/Carpet001/Carpet001_1K-JPG_NormalGL.jpg"]
+
+[resource]
+albedo_color = Color(1, 0.82, 0.35, 1)
+albedo_texture = ExtResource("Color")
+roughness = 0.9
+roughness_texture = ExtResource("Roughness")
+roughness_texture_channel = 4
+normal_texture = ExtResource("NormalGL")
+normal_enabled = true
+heightmap_texture = ExtResource("Displacement")
+heightmap_scale = 0.03
+heightmap_enabled = true
+uv1_scale = Vector3(2, 2, 1)

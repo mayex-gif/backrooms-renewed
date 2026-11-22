@@ -26,7 +26,14 @@ pendientes hasta recorrerlas en Godot.
 - [x] Alinear las caras inferiores visibles de placas, luminarias y vigas en salas modulares y circulares; construir las placas completas con BoxMesh e inclinar/elevar algunas sin mover las luminarias.
 - [x] Separar las placas normales 1,5 cm de la retícula y dar una inclinación leve adicional a las placas levantadas.
 - [x] Ampliar el catálogo con una sala abierta de columnas.
+- [ ] Implementado; pendiente de prueba manual: centrar las retículas de placas y vigas según las dimensiones de cada huella y compartir el origen con la vista de techo.
+- [ ] Implementado; pendiente de prueba manual: cambiar cualquier baldosa entre placa normal, luz encendida, intermitente y averiada desde la vista de techo, conservando el estado en el mapa.
+- [ ] Implementado; pendiente de prueba manual: añadir salas de 2,5 × 2,5 m para las alturas modulares disponibles en el catálogo.
+- [ ] Implementado; pendiente de prueba manual: agregar y quitar columnas de tamaño configurable por sala desde el editor y persistirlas en el mapa.
+- [ ] Implementado; pendiente de prueba manual: desactivar la generación automática para que solo se creen las luminarias elegidas manualmente, reduciendo el número total de luces.
 - [ ] Recorrer el catálogo y comprobar visualmente puertas, colisiones, techos y materiales.
+- [ ] Validar manualmente las placas centradas en salas rectangulares, circulares y de 2,5 × 2,5 m; convertir placas normales en luces y comprobar los cuatro estados dentro de la partida.
+- [ ] Validar manualmente columnas personalizadas: tamaños, límites de sala, guardado/carga, duplicado y aparición en la partida.
 
 ## Hito 3 — Dos formas de explorar
 
@@ -141,9 +148,15 @@ durante esta iteración.
 - [x] Recortar pisos, techos, placas y luminarias según las huellas superpuestas; conservar piso prioritario y techo más alto.
 - [x] Generar paredes y segmentos interiores por arista poligonal, permitiendo elegir el estado de cada tramo entre salas rotadas.
 - [x] Evitar ramas de geometría específicas por tipo; expresar diferencias de forma mediante huellas y datos compartidos.
-- [ ] Revisar iluminación: distinguir panel apagado, parpadeo y panel estable; confirmar que solo una parte de las luces parpadee.
-- [ ] Observar y ajustar los focos que sobreiluminan algunas paredes, sin bloquear la ampliación del catálogo.
-- [ ] Ampliar el catálogo con salas no cuadradas, varios diámetros circulares y salas abiertas con columnas de dimensiones individuales; evitar sumar variantes cuadradas redundantes.
+- [x] Revisar en Godot los controles de iluminación en pausa, probar valores en vivo y guardar la configuración aprobada en `user://iluminacion.cfg`.
+- [x] Cerrar el ajuste visual de iluminación con la configuración aprobada por el usuario.
+- [x] Ampliar el catálogo con salas no cuadradas, diámetros circulares variados y salas abiertas con columnas de dimensiones individuales, evitando variantes cuadradas redundantes.
+- [ ] Implementado; pendiente de prueba manual: salas compactas de 2,5 × 2,5 m para todas las alturas modulares incluidas en el catálogo.
+- [ ] Implementado; pendiente de prueba manual: edición de columnas personalizadas por sala, con dimensiones independientes y persistencia.
+- [ ] Implementado; pendiente de prueba manual: centrar placas, vigas y luminarias; convertir una placa normal en luminaria desde la vista de techo.
+- [ ] Implementado; pendiente de prueba manual: con generación automática desactivada, confirmar que solo aparezcan las luces elegidas manualmente y que el ajuste persista al guardar y volver a jugar.
+- [ ] Revisar en Godot la colocación y el tamaño individual de columnas, las conexiones de las nuevas galerías y los diámetros circulares nuevos.
+- [ ] Revisar en Godot el centrado de placas y vigas, la conversión placa/luz y la colocación, guardado y carga de columnas personalizadas.
 - [ ] Etapa 2: validar visualmente la superposición parcial de salas y la elección independiente de cada pared interior.
 - [ ] Validar visualmente que pisos, techos, vigas, placas y luces no se dupliquen y que prevalezca el techo más alto.
 - [ ] Validar visualmente solapes parciales, paredes abiertas y tabiques entre salas de distintas alturas.
