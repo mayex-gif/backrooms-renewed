@@ -9,6 +9,10 @@ extends Node3D
 @export var semilla_ambiente := 1
 
 const LuminariaScript = preload("res://salas/luminaria.gd")
+const GROSOR_PLACA_TECHO := 0.12
+const GROSOR_VIGA_TECHO := 0.06
+const DESFASE_PLACA_TECHO := 0.015
+const INCLINACION_PLACA_SUELTA := 3.0
 
 func _ready() -> void:
 	_crear_cilindro("Piso", 0.2, -0.1)
@@ -67,13 +71,13 @@ func _crear_techo_modular() -> void:
 		var dx := px - radio_m
 		var media_luz := sqrt(maxf(0.0, radio_m * radio_m - dx * dx))
 		if media_luz > 0.05:
-			_crear_viga(Vector3(px, alto_m - 0.12, radio_m), Vector3(0.07, 0.06, media_luz * 2.0))
+			_crear_viga(Vector3(px, alto_m + LuminariaScript.PLANO_ENCASTRE_Y + GROSOR_VIGA_TECHO * 0.5, radio_m), Vector3(0.07, GROSOR_VIGA_TECHO, media_luz * 2.0))
 	for z in cantidad + 1:
 		var pz := minf(z * tam_tile, radio_m * 2.0)
 		var dz := pz - radio_m
 		var media_horizontal := sqrt(maxf(0.0, radio_m * radio_m - dz * dz))
 		if media_horizontal > 0.05:
-			_crear_viga(Vector3(radio_m, alto_m - 0.12, pz), Vector3(media_horizontal * 2.0, 0.06, 0.07))
+			_crear_viga(Vector3(radio_m, alto_m + LuminariaScript.PLANO_ENCASTRE_Y + GROSOR_VIGA_TECHO * 0.5, pz), Vector3(media_horizontal * 2.0, GROSOR_VIGA_TECHO, 0.07))
 	var fase_x := 1
 	var fase_z := 1
 	for x in cantidad:
@@ -86,12 +90,17 @@ func _crear_techo_modular() -> void:
 			var valor := rng.randf()
 			if valor < 0.065:
 				continue
-			var tile := _crear_tile(Vector3(centro_x, alto_m - 0.1, centro_z), tam_tile - 0.025, rng)
-			if valor > 0.93:
-				tile.position.y += rng.randf_range(0.04, 0.12)
-				tile.rotation_degrees.z = rng.randf_range(-2.0, 2.0)
-			if posmod(x - fase_x, 3) == 0 and posmod(z - fase_z, 3) == 0 and rng.randf() > 0.25 and centro_x >= 1.1 and centro_z >= 1.1 and centro_x <= radio_m * 2.0 - 1.1 and centro_z <= radio_m * 2.0 - 1.1:
-				LuminariaScript.crear(self, Vector3(centro_x, alto_m - 0.155, centro_z), 1.475, 1.475, alto_m, rng)
+			var crear_luminaria := posmod(x - fase_x, 3) == 0 and posmod(z - fase_z, 3) == 0 and rng.randf() > 0.25 and centro_x >= 1.1 and centro_z >= 1.1 and centro_x <= radio_m * 2.0 - 1.1 and centro_z <= radio_m * 2.0 - 1.1
+			var posicion := Vector3(centro_x, alto_m + LuminariaScript.PLANO_ENCASTRE_Y + GROSOR_PLACA_TECHO * 0.5, centro_z)
+			var tile: StaticBody3D
+			if crear_luminaria:
+				tile = _crear_tile(posicion, tam_tile - 0.025, false)
+				LuminariaScript.crear(self, Vector3(centro_x, alto_m + LuminariaScript.DESFASE_CENTRO_PANEL_Y, centro_z), 1.475, 1.475, alto_m, rng)
+			else:
+				tile = _crear_tile(posicion + Vector3.UP * DESFASE_PLACA_TECHO, tam_tile - 0.025)
+				if valor > 0.93:
+					tile.position.y += rng.randf_range(0.04, 0.12)
+					tile.rotation_degrees.z = rng.randf_range(-INCLINACION_PLACA_SUELTA, INCLINACION_PLACA_SUELTA)
 
 func _crear_viga(posicion: Vector3, tamano: Vector3) -> void:
 	var visual := MeshInstance3D.new()
@@ -103,21 +112,22 @@ func _crear_viga(posicion: Vector3, tamano: Vector3) -> void:
 	visual.mesh = malla
 	add_child(visual)
 
-func _crear_tile(posicion: Vector3, tamano: float, rng: RandomNumberGenerator) -> StaticBody3D:
+func _crear_tile(posicion: Vector3, tamano: float, mostrar_malla: bool = true) -> StaticBody3D:
 	var cuerpo := StaticBody3D.new()
 	cuerpo.name = "TileTecho"
 	cuerpo.position = posicion
 	var forma := BoxShape3D.new()
-	forma.size = Vector3(tamano, 0.12, tamano)
+	forma.size = Vector3(tamano, GROSOR_PLACA_TECHO, tamano)
 	var colision := CollisionShape3D.new()
 	colision.shape = forma
 	cuerpo.add_child(colision)
-	var visual := MeshInstance3D.new()
-	var malla := BoxMesh.new()
-	malla.size = forma.size
-	visual.mesh = malla
-	visual.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-	cuerpo.add_child(visual)
+	if mostrar_malla:
+		var visual := MeshInstance3D.new()
+		var malla := BoxMesh.new()
+		malla.size = forma.size
+		visual.mesh = malla
+		visual.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		cuerpo.add_child(visual)
 	add_child(cuerpo)
 	return cuerpo
 

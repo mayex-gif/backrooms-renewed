@@ -32,8 +32,12 @@ var _alias_tipos: Dictionary = {}
 var _estados_conexion: Dictionary = {}
 ## Estado por tramo interior superpuesto: true lo abre, false lo conserva como tabique.
 var _estados_solape: Dictionary = {}
+## Modo de luz por posición global de luminaria en este mapa.
+var _modos_luces: Dictionary = {}
 var _siguiente_id := 0
 var _hay_cambios := false
+var _vista_techo := false
+var _boton_vista_techo: Button
 
 func _ready() -> void:
 	var script_catalogo: Script = load("res://salas/catalogo_salas.gd")
@@ -74,6 +78,10 @@ func _crear_interfaz() -> void:
 	_agregar_boton(barra, "Guardar", func() -> void: _guardar_actual(true))
 	_agregar_boton(barra, "Guardar como", _abrir_guardar)
 	_agregar_boton(barra, "Jugar", _jugar)
+	_boton_vista_techo = Button.new()
+	_boton_vista_techo.text = "Vista de techo"
+	_boton_vista_techo.pressed.connect(_alternar_vista_techo)
+	barra.add_child(_boton_vista_techo)
 	_agregar_boton(barra, "Cargar", _abrir_cargar)
 	_lista_guardados = OptionButton.new()
 	_lista_guardados.item_selected.connect(_seleccionar_guardado)
@@ -187,7 +195,7 @@ func _guardar_actual(marcar_guardado: bool = false) -> void:
 func _serializar() -> String:
 	var filas: Array = _salas.map(func(s: Dictionary) -> Dictionary: return {"id": s.id, "tipo": s.tipo, "x": s.x, "z": s.z, "angulo": s.angulo})
 	filas.append_array(_desconocidas)
-	return JSON.stringify({"version": 4, "conexiones": _estados_conexion, "solapes": _estados_solape, "salas": filas}, "\t")
+	return JSON.stringify({"version": 5, "conexiones": _estados_conexion, "solapes": _estados_solape, "modos_luces": _modos_luces, "salas": filas}, "\t")
 
 func _actualizar_guardados() -> void:
 	if _lista_guardados == null:
@@ -224,6 +232,7 @@ func _cargar_ruta(ruta: String) -> void:
 	_desconocidas.clear()
 	_estados_conexion.clear()
 	_estados_solape.clear()
+	_modos_luces.clear()
 	var estados_guardados: Variant = datos.get("conexiones", {})
 	if estados_guardados is Dictionary:
 		for clave in estados_guardados:
@@ -232,6 +241,9 @@ func _cargar_ruta(ruta: String) -> void:
 	var solapes_guardados: Variant = datos.get("solapes", {})
 	if solapes_guardados is Dictionary:
 		_estados_solape = solapes_guardados.duplicate()
+	var modos_luces_guardados: Variant = datos.get("modos_luces", {})
+	if modos_luces_guardados is Dictionary:
+		_modos_luces = modos_luces_guardados.duplicate(true)
 	# Los mapas viejos no traen "id": se usa la posición de la fila en el archivo
 	# (mapa_guardado.gd aplica la misma regla).
 	_siguiente_id = 0
@@ -268,8 +280,32 @@ func _cargar_ruta(ruta: String) -> void:
 	_actualizar_rotacion_visible()
 
 func _jugar() -> void:
-	_guardar_actual(true)
+	if not _guardar_para_jugar():
+		return
 	get_tree().change_scene_to_file("res://pruebas/mapa_guardado.tscn")
+
+func _guardar_para_jugar() -> bool:
+	_guardar_actual(true)
+	if _ruta_actual == "user://saves/mapa_actual.json":
+		return FileAccess.file_exists(_ruta_actual)
+	var copia := FileAccess.open("user://saves/mapa_actual.json", FileAccess.WRITE)
+	if copia == null:
+		_estado.text = "No se pudo preparar el mapa para jugar."
+		return false
+	copia.store_string(_serializar())
+	return true
+
+
+func _alternar_vista_techo() -> void:
+	_vista_techo = not _vista_techo
+	_boton_vista_techo.text = "Volver al plano" if _vista_techo else "Vista de techo"
+	if _vista_techo:
+		_estado.text = "Techo: cada cuadrado representa una placa. Click en una luz para alternar encendida, intermitente y averiada."
+		if _modos_luces.is_empty():
+			_estado.text += " Las luces se muestran tras abrir el mapa 3D una vez."
+	else:
+		_estado.text = "Plano de salas."
+	_lienzo.queue_redraw()
 
 func _solicitar_salir() -> void:
 	if _hay_cambios:
@@ -322,6 +358,9 @@ func _entrada_lienzo(evento: InputEvent) -> void:
 			_escala = maxf(8.0, _escala / 1.15)
 		elif evento.pressed and evento.button_index == MOUSE_BUTTON_LEFT:
 			var punto_mapa := _punto_mapa(evento.position)
+			if _vista_techo:
+				_cambiar_estado_luz_techo(punto_mapa)
+				return
 			var clave_solape := _segmento_solape_en(punto_mapa)
 			if not clave_solape.is_empty():
 				var plan_actual: Dictionary = PlanificadorSolapesScript.calcular(_modulos_para_conexiones(), _estados_solape)
@@ -347,7 +386,8 @@ func _entrada_lienzo(evento: InputEvent) -> void:
 				_actualizar_rotacion_visible()
 				_colocar(evento.position)
 		elif evento.pressed and evento.button_index == MOUSE_BUTTON_RIGHT:
-			_borrar(evento.position)
+			if not _vista_techo:
+				_borrar(evento.position)
 		_lienzo.queue_redraw()
 
 ## El lienzo no tiene foco de teclado, así que las teclas no llegan a su
@@ -355,6 +395,8 @@ func _entrada_lienzo(evento: InputEvent) -> void:
 func _unhandled_key_input(evento: InputEvent) -> void:
 	var tecla := evento as InputEventKey
 	if tecla != null and tecla.pressed and not tecla.echo and tecla.keycode == KEY_R:
+		if _vista_techo:
+			return
 		get_viewport().set_input_as_handled()
 		var delta := -5.0 if tecla.shift_pressed else 5.0
 		if _seleccion_sala >= 0 and _seleccion_sala < _salas.size():
@@ -601,11 +643,14 @@ func _dibujar() -> void:
 		if solapadas.has(i):
 			color = Color(0.62, 0.22, 0.20)
 		_lienzo.draw_colored_polygon(poligono, color)
+		if _vista_techo:
+			_dibujar_tiles_techo(sala, definicion, deg_to_rad(float(sala.get("angulo", 0.0))), centro)
 		for e in poligono.size():
 			var color_borde := Color(0.30, 0.85, 1.0) if i == _seleccion_sala else Color(0.83, 0.79, 0.62)
 			_lienzo.draw_line(poligono[e], poligono[(e + 1) % poligono.size()], color_borde, 3.0 if i == _seleccion_sala else 2.0)
-		var etiqueta: String = sala.tipo + (" · %.0f°" % float(sala.get("angulo", 0.0)))
-		_lienzo.draw_string(ThemeDB.fallback_font, centro + Vector2(sala.x, sala.z) * _escala - Vector2(definicion.ancho_m * _escala * 0.5, 0), etiqueta, HORIZONTAL_ALIGNMENT_LEFT, -1, 12, Color.WHITE)
+		if not _vista_techo:
+			var etiqueta: String = sala.tipo + (" · %.0f°" % float(sala.get("angulo", 0.0)))
+			_lienzo.draw_string(ThemeDB.fallback_font, centro + Vector2(sala.x, sala.z) * _escala - Vector2(definicion.ancho_m * _escala * 0.5, 0), etiqueta, HORIZONTAL_ALIGNMENT_LEFT, -1, 12, Color.WHITE)
 	for conexion in ConexionesMapaScript.calcular(modulos, _estados_conexion):
 		_dibujar_puerta(conexion, centro)
 	var plan_solapes: Dictionary = PlanificadorSolapesScript.calcular(modulos, _estados_solape)
@@ -625,6 +670,99 @@ func _dibujar() -> void:
 			ConexionesMapaScript.ESTADO_INTERSECCION:
 				color = Color(0.85, 0.55, 1.0)
 		_lienzo.draw_line(centro + segmento.inicio * _escala, centro + segmento.fin * _escala, color, 6.0)
+
+func _dibujar_tiles_techo(sala: Dictionary, definicion: SalaDef, angulo: float, centro_lienzo: Vector2) -> void:
+	const TAM_TILE := 1.5
+	var huella := definicion.obtener_huella_local()
+	var limites := GeometriaHuella.limites(huella)
+	var centro_local := limites.get_center()
+	for x in ceili(limites.size.x / TAM_TILE):
+		for z in ceili(limites.size.y / TAM_TILE):
+			var x0 := limites.position.x + x * TAM_TILE
+			var z0 := limites.position.y + z * TAM_TILE
+			var ancho_tile := minf(TAM_TILE, limites.end.x - x0)
+			var largo_tile := minf(TAM_TILE, limites.end.y - z0)
+			var celda := GeometriaHuella.rectangulo(ancho_tile, largo_tile, Vector2(x0 + ancho_tile * 0.5, z0 + largo_tile * 0.5))
+			var piezas := GeometriaHuella.intersecciones(celda, huella)
+			var centro_local_tile := Vector2(x0 + ancho_tile * 0.5, z0 + largo_tile * 0.5)
+			var centro_mundo := Vector2(sala.x, sala.z) + (centro_local_tile - centro_local).rotated(angulo)
+			var id_luz := _id_luminaria(centro_mundo)
+			var modo_luz := int(_modos_luces.get(id_luz, -1))
+			var color_tile := Color(0.44, 0.44, 0.41)
+			if modo_luz == 0:
+				color_tile = Color(0.82, 0.79, 0.66)
+			elif modo_luz == 1:
+				color_tile = Color(0.76, 0.48, 0.19)
+			elif modo_luz == 2:
+				color_tile = Color(0.20, 0.20, 0.19)
+			for pieza in piezas:
+				var poligono := PackedVector2Array()
+				for punto in pieza:
+					var mundo := Vector2(sala.x, sala.z) + (punto - centro_local).rotated(angulo)
+					poligono.append(centro_lienzo + mundo * _escala)
+				_lienzo.draw_colored_polygon(poligono, color_tile)
+				for indice in poligono.size():
+					_lienzo.draw_line(poligono[indice], poligono[(indice + 1) % poligono.size()], Color(0.12, 0.12, 0.12), 1.0)
+			if modo_luz >= 0:
+				var color_icono := Color(1.0, 0.95, 0.76)
+				if modo_luz == 1:
+					color_icono = Color(1.0, 0.66, 0.24)
+				elif modo_luz == 2:
+					color_icono = Color(0.62, 0.62, 0.59)
+				_lienzo.draw_circle(centro_lienzo + centro_mundo * _escala, 4.5, color_icono)
+
+func _cambiar_estado_luz_techo(punto_mapa: Vector2) -> void:
+	var id := _luz_techo_en(punto_mapa)
+	if id.is_empty():
+		_estado.text = "Ese tile no tiene una luminaria para cambiar."
+		if _modos_luces.is_empty():
+			_estado.text += " Abrí Jugar una vez para cargar las luminarias de este mapa."
+		return
+	var modo := (int(_modos_luces.get(id, 0)) + 1) % 3
+	_modos_luces[id] = modo
+	_hay_cambios = true
+	_guardar_actual()
+	var estados := ["encendida", "intermitente", "averiada"]
+	_estado.text = "Luminaria %s: %s." % [id, estados[modo]]
+	_lienzo.queue_redraw()
+
+func _luz_techo_en(punto_mapa: Vector2) -> String:
+	const TAM_TILE := 1.5
+	var mejor_distancia := INF
+	var mejor_id := ""
+	for sala in _salas:
+		var definicion := _catalogo[_indice_tipo(String(sala.tipo))]
+		var huella := definicion.obtener_huella_local()
+		var limites := GeometriaHuella.limites(huella)
+		var centro_local := limites.get_center()
+		var angulo := deg_to_rad(float(sala.get("angulo", 0.0)))
+		for x in ceili(limites.size.x / TAM_TILE):
+			for z in ceili(limites.size.y / TAM_TILE):
+				var x0 := limites.position.x + x * TAM_TILE
+				var z0 := limites.position.y + z * TAM_TILE
+				var ancho_tile := minf(TAM_TILE, limites.end.x - x0)
+				var largo_tile := minf(TAM_TILE, limites.end.y - z0)
+				var celda := GeometriaHuella.rectangulo(ancho_tile, largo_tile, Vector2(x0 + ancho_tile * 0.5, z0 + largo_tile * 0.5))
+				var centro_local_tile := Vector2(x0 + ancho_tile * 0.5, z0 + largo_tile * 0.5)
+				var centro_mundo := Vector2(sala.x, sala.z) + (centro_local_tile - centro_local).rotated(angulo)
+				var id := _id_luminaria(centro_mundo)
+				if not _modos_luces.has(id):
+					continue
+				var piezas := GeometriaHuella.intersecciones(celda, huella)
+				for pieza in piezas:
+					var poligono: Array[Vector2] = []
+					for punto in pieza:
+						poligono.append(Vector2(sala.x, sala.z) + (punto - centro_local).rotated(angulo))
+					if _distancia_punto_poligono(punto_mapa, poligono) != 0.0:
+						continue
+					var distancia := punto_mapa.distance_to(centro_mundo)
+					if distancia < mejor_distancia:
+						mejor_distancia = distancia
+						mejor_id = id
+	return mejor_id
+
+func _id_luminaria(posicion: Vector2) -> String:
+	return "X %.2f · Z %.2f" % [posicion.x, posicion.y]
 
 func _segmento_solape_en(punto: Vector2) -> String:
 	var plan: Dictionary = PlanificadorSolapesScript.calcular(_modulos_para_conexiones(), _estados_solape)

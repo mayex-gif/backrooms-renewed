@@ -1,5 +1,7 @@
 extends CanvasLayer
-## Controles de inspección disponibles solo en ejecuciones de desarrollo (F4).
+## Controles de iluminación y desarrollo accesibles desde el editor de mapas.
+
+const RUTA_MAPA := "user://saves/mapa_actual.json"
 
 var _panel: PanelContainer
 var _estado: Label
@@ -8,45 +10,48 @@ var _intensidad_luz: HSlider
 var _cantidad_salas: SpinBox
 var _peso_grandes: HSlider
 var _peso_abiertas: HSlider
+var _pagina_ajustes: VBoxContainer
+var _modos_luz_por_id: Dictionary = {}
 var _iluminacion_activa := true
+
+const MODO_ENCENDIDA := 0
+const MODO_INTERMITENTE := 1
+const MODO_AVERIADA := 2
 
 func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
 	add_to_group("panel_desarrollo")
 	_crear_interfaz()
 	get_tree().scene_changed.connect(_al_cambio_escena)
+	_cargar_modos_persistidos()
 	_aplicar_iluminacion()
-
-func _unhandled_input(event: InputEvent) -> void:
-	if not OS.is_debug_build() or not event is InputEventKey:
-		return
-	if event.physical_keycode == KEY_F4 and event.pressed and not event.echo:
-		_panel.visible = not _panel.visible
-		Input.mouse_mode = Input.MOUSE_MODE_VISIBLE if _panel.visible else Input.MOUSE_MODE_CAPTURED
-		_actualizar_modo_actual()
-		get_viewport().set_input_as_handled()
 
 func _crear_interfaz() -> void:
 	_panel = PanelContainer.new()
 	_panel.visible = false
 	_panel.mouse_filter = Control.MOUSE_FILTER_STOP
 	_panel.set_anchors_preset(Control.PRESET_CENTER)
-	_panel.position = Vector2(-300, -265)
-	_panel.custom_minimum_size = Vector2(600, 530)
+	_panel.position = Vector2(-400, -375)
+	_panel.custom_minimum_size = Vector2(800, 750)
 	add_child(_panel)
 	var margen := MarginContainer.new()
 	for lado in ["left", "right", "top", "bottom"]:
 		margen.add_theme_constant_override("margin_" + lado, 22)
 	_panel.add_child(margen)
+	var paginas := Control.new()
+	paginas.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	margen.add_child(paginas)
 	var columna := VBoxContainer.new()
+	columna.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	columna.add_theme_constant_override("separation", 10)
-	margen.add_child(columna)
+	_pagina_ajustes = columna
+	paginas.add_child(columna)
 	var titulo := Label.new()
 	titulo.text = "AJUSTES DE DESARROLLO"
 	titulo.add_theme_font_size_override("font_size", 22)
 	columna.add_child(titulo)
 	var ayuda := Label.new()
-	ayuda.text = "F4 abre/cierra. Cambiá el conteo y los pesos, y aplicá para ver el plano rediseñado en ejecución."
+	ayuda.text = "Controles de iluminación y generación para inspeccionar el mapa actual."
 	ayuda.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	columna.add_child(ayuda)
 	_check_luz = CheckButton.new()
@@ -75,7 +80,7 @@ func _crear_interfaz() -> void:
 	aplicar.pressed.connect(_aplicar_mapa)
 	botones.add_child(aplicar)
 	var cerrar := Button.new()
-	cerrar.text = "Cerrar (F4)"
+	cerrar.text = "Cerrar panel"
 	cerrar.pressed.connect(_cerrar)
 	botones.add_child(cerrar)
 	_estado = Label.new()
@@ -116,6 +121,12 @@ func _cambio_peso(_valor: float) -> void:
 func _aplicar_iluminacion() -> void:
 	if not is_inside_tree():
 		return
+	var luminarias := get_tree().get_nodes_in_group("luces_techo")
+	var hay_luminaria_operativa := false
+	for luminaria in luminarias:
+		if int(_obtener_propiedad(luminaria, "modo", MODO_ENCENDIDA)) != MODO_AVERIADA:
+			hay_luminaria_operativa = true
+			break
 	var entornos: Array[Node] = get_tree().get_nodes_in_group("entornos_juego")
 	var escena := get_tree().current_scene
 	if escena != null:
@@ -128,17 +139,77 @@ func _aplicar_iluminacion() -> void:
 			continue
 		var ambiente: Environment = entorno.environment
 		if ambiente != null:
-			ambiente.ambient_light_energy = float(entorno.get_meta("energia_ambiente_base", 0.32)) if _iluminacion_activa else 0.0
+			# El relleno ambiental no debe simular luminarias cuando todas están averiadas.
+			var debe_conservar_relleno := luminarias.is_empty() or hay_luminaria_operativa
+			ambiente.ambient_light_energy = float(entorno.get_meta("energia_ambiente_base", 0.32)) if _iluminacion_activa and debe_conservar_relleno else 0.0
 	for luz in get_tree().get_nodes_in_group("luces_techo_nodos"):
-		luz.visible = _iluminacion_activa
+		var modo := int(luz.get_meta("modo_luz", MODO_ENCENDIDA))
+		luz.visible = _iluminacion_activa and modo != MODO_AVERIADA
 		luz.set_meta("factor_desarrollo", _intensidad_luz.value)
-		luz.light_energy = float(luz.get_meta("energia_base", 0.9)) * _intensidad_luz.value
+		if modo == MODO_ENCENDIDA:
+			luz.light_energy = float(luz.get_meta("energia_base", 3.2)) * _intensidad_luz.value
+		elif modo == MODO_AVERIADA:
+			luz.light_energy = 0.0
 	for panel in get_tree().get_nodes_in_group("paneles_luz"):
 		var material := panel.material_override as StandardMaterial3D
 		if material != null:
-			material.emission_enabled = _iluminacion_activa and bool(panel.get_meta("emite_por_defecto", false))
+			var modo := int(panel.get_meta("modo_luz", MODO_ENCENDIDA))
+			if modo != MODO_INTERMITENTE:
+				material.emission_enabled = _iluminacion_activa and modo == MODO_ENCENDIDA
 	for luminaria in get_tree().get_nodes_in_group("luces_techo"):
 		luminaria.visible = _iluminacion_activa
+
+func abrir_ajustes_desarrollo() -> void:
+	_pagina_ajustes.visible = true
+	_panel.visible = true
+	_actualizar_modo_actual()
+	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
+
+func _cargar_modos_persistidos() -> void:
+	_modos_luz_por_id.clear()
+	if not FileAccess.file_exists(RUTA_MAPA):
+		return
+	var archivo := FileAccess.open(RUTA_MAPA, FileAccess.READ)
+	if archivo == null:
+		return
+	var datos: Variant = JSON.parse_string(archivo.get_as_text())
+	archivo.close()
+	if not datos is Dictionary:
+		return
+	var modos_guardados: Variant = datos.get("modos_luces", {})
+	if modos_guardados is Dictionary:
+		for id in modos_guardados:
+			_modos_luz_por_id[String(id)] = int(modos_guardados[id])
+
+func _guardar_modos_persistidos() -> void:
+	if not FileAccess.file_exists(RUTA_MAPA):
+		return
+	var archivo_lectura := FileAccess.open(RUTA_MAPA, FileAccess.READ)
+	if archivo_lectura == null:
+		return
+	var datos: Variant = JSON.parse_string(archivo_lectura.get_as_text())
+	archivo_lectura.close()
+	if not datos is Dictionary:
+		return
+	datos["modos_luces"] = _modos_luz_por_id.duplicate(true)
+	var archivo_escritura := FileAccess.open(RUTA_MAPA, FileAccess.WRITE)
+	if archivo_escritura == null:
+		return
+	archivo_escritura.store_string(JSON.stringify(datos, "\t"))
+
+func _sincronizar_modos_luces() -> void:
+	var luces := get_tree().get_nodes_in_group("luces_techo")
+	if luces.is_empty():
+		return
+	var modos_activos: Dictionary = {}
+	for luminaria in luces:
+		var id := String(luminaria.get_meta("id_editor", luminaria.name))
+		var modo := int(_modos_luz_por_id.get(id, _obtener_propiedad(luminaria, "modo", MODO_ENCENDIDA)))
+		if int(_obtener_propiedad(luminaria, "modo", modo)) != modo:
+			luminaria.call("configurar_modo", modo)
+		modos_activos[id] = modo
+	_modos_luz_por_id = modos_activos
+	_guardar_modos_persistidos()
 
 func _aplicar_mapa() -> void:
 	var escena := get_tree().current_scene
@@ -176,12 +247,21 @@ func _obtener_propiedad(objeto: Object, nombre: String, valor_por_defecto: Varia
 	return valor_por_defecto
 
 func _al_cambio_escena() -> void:
+	var escena := get_tree().current_scene
+	if escena != null and escena.scene_file_path == "res://pruebas/mapa_guardado.tscn":
+		_cargar_modos_persistidos()
+		_sincronizar_modos_luces()
+	else:
+		_modos_luz_por_id.clear()
 	_aplicar_iluminacion()
 	_actualizar_modo_actual()
+	_panel.visible = false
+	_pagina_ajustes.visible = true
 
 func _cerrar() -> void:
 	_panel.visible = false
-	Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
+	if get_tree().current_scene != null and not get_tree().current_scene.find_children("Jugador", "CharacterBody3D", true, false).is_empty():
+		Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
 
 func esta_abierto() -> bool:
 	return _panel != null and _panel.visible

@@ -42,13 +42,13 @@ individuales desde el editor de Godot.
 - F: prender o apagar la linterna.
 - F3: activar o desactivar no-clip en una compilación de desarrollo; WASD y el
   mouse dirigen el vuelo, E sube y Q baja.
-- F4: abrir el panel de desarrollo. Permite encender/apagar la iluminación y
-  ajustar su intensidad. En el plano curado, la cantidad (hasta 39) extiende o
-  acorta el recorrido y los pesos priorizan ramales grandes o abiertos; en el
-  aleatorio cambian el máximo y los pesos del catálogo. Pulsá **Aplicar al mapa
-  actual** para reconstruirlo y ver el cambio durante la partida. El jugador
-  vuelve al inicio del mapa al aplicarlo. Mientras el panel está abierto, el
-  cursor queda libre y el movimiento del jugador se detiene.
+- En una partida, Escape abre el menú con el botón **Ajustes de desarrollo**;
+  desde allí se controla la iluminación y, en los modos compatibles, la cantidad
+  y los pesos de salas. El cursor queda libre mientras los ajustes están abiertos.
+- En el editor de mapas, **Vista de techo** superpone las placas sobre el mismo
+  plano. Cada luz usa el color de su estado y un clic alterna entre encendida,
+  intermitente y averiada. La primera vez, ejecutá **Jugar** para cargar las
+  ubicaciones reales de las luminarias; los estados se guardan en el mapa.
 
 ## Escenas de exploración y pruebas
 

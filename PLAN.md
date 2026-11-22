@@ -23,6 +23,8 @@ pendientes hasta recorrerlas en Godot.
 - [x] Alinear la parte inferior de las barras con las placas y eliminar el hueco lateral entre ambas.
 - [x] Aplicar techo modular también a la sala circular.
 - [x] Mantener geometría sin tintes ni texturas mientras se corrigen formas y proporciones.
+- [x] Alinear las caras inferiores visibles de placas, luminarias y vigas en salas modulares y circulares; construir las placas completas con BoxMesh e inclinar/elevar algunas sin mover las luminarias.
+- [x] Separar las placas normales 1,5 cm de la retícula y dar una inclinación leve adicional a las placas levantadas.
 - [x] Ampliar el catálogo con una sala abierta de columnas.
 - [ ] Recorrer el catálogo y comprobar visualmente puertas, colisiones, techos y materiales.
 
@@ -34,12 +36,12 @@ pendientes hasta recorrerlas en Godot.
 - [x] Abrir los pasos entre alas principales para que se perciban como zonas amplias conectadas.
 - [ ] Diseñar precipicios jugables con bordes seguros y acceso claro a cada plataforma explorable.
 - [ ] Diseñar el plenum del techo para mostrar cañerías y permitir acceso superior sin dejar huecos accidentales al exterior.
-- [x] Añadir un panel F4: iluminación global y ajustes de cantidad/pesos para ambos modos.
+- [x] Añadir ajustes de desarrollo accesibles desde el menú de pausa y una vista de techo superpuesta en el editor de mapas; mostrar placas y luces, cambiar el estado de cada luz con un clic y guardar los cambios en el mapa.
 - [x] Usar el conteo de salas para extender o acortar el plano curado; usar los pesos para priorizar ramales grandes y abiertos.
-- [x] Reconstruir el mapa actual desde F4 y sellar las salidas de ramales omitidos.
+- [x] Reconstruir el mapa actual desde los ajustes de desarrollo y sellar las salidas de ramales omitidos.
 - [x] Mantener `pruebas/escenario_generado.tscn` como modo de exploración procedural con semilla y ampliación por bloques.
 - [x] Hacer opcional la impresión de la huella completa para que el log no crezca con cada ampliación.
-- [ ] Recorrer ambos modos desde el menú, probar los ajustes F4 en ejecución y verificar que todas las conexiones coinciden en posición y altura.
+- [ ] Recorrer ambos modos desde el menú, probar los ajustes de desarrollo y verificar que todas las conexiones coinciden en posición y altura.
 - [ ] Verificar distintas semillas y el agotamiento de conexiones en el modo aleatorio.
 
 ## Hito 4 — Continuidad y rendimiento
@@ -53,7 +55,8 @@ pendientes hasta recorrerlas en Godot.
 **Problema de rendimiento registrado:** el log de la última ejecución muestra
 ampliaciones de 24 a 36, 48, 60 y 72 salas. Cada ampliación reconstruye todas las
 salas y produce una pausa cercana a un segundo. Se posterga la optimización por
-ahora. El modo diseñado reconstruye como máximo 39 salas al aplicar cambios F4;
+ahora. El modo diseñado reconstruye como máximo 39 salas al aplicar cambios desde
+los ajustes de desarrollo;
 hay que comprobar si esa acción también genera una pausa perceptible.
 
 ### Plan de rendimiento y variedad geométrica
@@ -90,7 +93,10 @@ durante esta iteración.
 
 ## Hito 5 — Atmósfera y publicación
 
-- [ ] Cerrar materiales, iluminación, niebla y sonido ambiental; la iluminación actual es editable desde F4.
+- [ ] Cerrar materiales, iluminación, niebla y sonido ambiental; la iluminación actual es editable desde los ajustes de desarrollo.
+- [ ] Verificar visualmente que al averiar todas las luminarias el ambiente quede oscuro, conservando la linterna del jugador.
+- [ ] Verificar a distancia que los focos se desvanezcan entre 30 m y 40 m sin afectar su alcance cercano.
+- [ ] Ajustar visualmente la intensidad 0,25 y los conos calculados por altura para confirmar que las superficies fuera del haz quedan oscuras y el piso sigue legible.
 - [ ] Revisar el zumbido de fluorescentes con pruebas auditivas y atenuación por distancia.
 - [ ] Preparar build, video corto y publicación en itch.io.
 
@@ -134,6 +140,8 @@ durante esta iteración.
 - [x] Generar paredes y segmentos interiores por arista poligonal, permitiendo elegir el estado de cada tramo entre salas rotadas.
 - [x] Evitar ramas de geometría específicas por tipo; expresar diferencias de forma mediante huellas y datos compartidos.
 - [ ] Revisar iluminación: distinguir panel apagado, parpadeo y panel estable; confirmar que solo una parte de las luces parpadee.
+- [ ] Observar y ajustar los focos que sobreiluminan algunas paredes, sin bloquear la ampliación del catálogo.
+- [ ] Ampliar el catálogo con salas no cuadradas, varios diámetros circulares y salas abiertas con columnas de dimensiones individuales; evitar sumar variantes cuadradas redundantes.
 - [ ] Etapa 2: validar visualmente la superposición parcial de salas y la elección independiente de cada pared interior.
 - [ ] Validar visualmente que pisos, techos, vigas, placas y luces no se dupliquen y que prevalezca el techo más alto.
 - [ ] Validar visualmente solapes parciales, paredes abiertas y tabiques entre salas de distintas alturas.

@@ -13,6 +13,10 @@ extends Node3D
 @export var zonas_techo_excluidas: Array = []
 
 const LuminariaScript = preload("res://salas/luminaria.gd")
+const GROSOR_PLACA_TECHO := 0.12
+const GROSOR_VIGA_TECHO := 0.06
+const DESFASE_PLACA_TECHO := 0.015
+const INCLINACION_PLACA_SUELTA := 3.0
 
 func _ready() -> void:
 	var huella := _huella()
@@ -237,6 +241,7 @@ func _crear_columnas() -> void:
 
 func _buscar_posicion_columna_sin_luz(base: Vector2, usadas: Array[Vector2]) -> Vector2:
 	var tam_tile := 1.5
+	var origen_grilla := GeometriaHuella.limites(_huella()).position
 	var fase_x := 1
 	var fase_z := 1
 	var mejor := base
@@ -246,7 +251,7 @@ func _buscar_posicion_columna_sin_luz(base: Vector2, usadas: Array[Vector2]) -> 
 			var es_posicion_luz := posmod(x - fase_x, 3) == 0 and posmod(z - fase_z, 3) == 0
 			if es_posicion_luz:
 				continue
-			var candidata := Vector2((x + 0.5) * tam_tile, (z + 0.5) * tam_tile)
+			var candidata := origen_grilla + Vector2((x + 0.5) * tam_tile, (z + 0.5) * tam_tile)
 			if candidata.x > ancho_m - 0.65 or candidata.y > largo_m - 0.65:
 				continue
 			if not GeometriaHuella.contiene(_huella(), candidata):
@@ -294,10 +299,10 @@ func _crear_techo_modular() -> void:
 	_crear_superficie_poligonal("Plenum superior", _huella(), zonas_techo_excluidas, alto_m + 0.02, 0.2)
 	for x in range(columnas_tiles + 1):
 		var px := limites.position.x + x * tam_tile
-		_crear_viga_techo(GeometriaHuella.rectangulo(0.07, limites.size.y, Vector2(px, limites.get_center().y)), alto_m - 0.20)
+		_crear_viga_techo(GeometriaHuella.rectangulo(0.07, limites.size.y, Vector2(px, limites.get_center().y)), alto_m + LuminariaScript.PLANO_ENCASTRE_Y + GROSOR_VIGA_TECHO * 0.5)
 	for z in range(filas_tiles + 1):
 		var pz := limites.position.y + z * tam_tile
-		_crear_viga_techo(GeometriaHuella.rectangulo(limites.size.x, 0.07, Vector2(limites.get_center().x, pz)), alto_m - 0.20)
+		_crear_viga_techo(GeometriaHuella.rectangulo(limites.size.x, 0.07, Vector2(limites.get_center().x, pz)), alto_m + LuminariaScript.PLANO_ENCASTRE_Y + GROSOR_VIGA_TECHO * 0.5)
 	for x in columnas_tiles:
 		for z in filas_tiles:
 			var x0 := limites.position.x + x * tam_tile
@@ -305,14 +310,13 @@ func _crear_techo_modular() -> void:
 			var ancho_tile := minf(tam_tile, limites.end.x - x0)
 			var largo_tile := minf(tam_tile, limites.end.y - z0)
 			var rect_tile := GeometriaHuella.rectangulo(ancho_tile, largo_tile, Vector2(x0 + ancho_tile * 0.5, z0 + largo_tile * 0.5))
-			var centro := Vector3(x0 + ancho_tile * 0.5, alto_m - 0.1, z0 + largo_tile * 0.5)
+			var centro := Vector3(x0 + ancho_tile * 0.5, alto_m + LuminariaScript.PLANO_ENCASTRE_Y + GROSOR_PLACA_TECHO * 0.5, z0 + largo_tile * 0.5)
 			var valor := rng.randf()
 			if valor < 0.065:
 				continue # Baldosa faltante.
 			var piezas := GeometriaHuella.intersecciones(rect_tile, _huella())
 			piezas = GeometriaHuella.restar_a_poligonos(piezas, zonas_techo_excluidas)
-			for pieza in piezas:
-				_crear_prisma_poligonal("TileTecho", pieza, alto_m - 0.1, 0.12, true, false)
+			piezas = _sin_astillas(piezas)
 			# Las luces siguen un ritmo de paneles de oficina, con variaciones por sala.
 			# Esto evita el patrón de puntos aleatorios demasiado denso.
 			var fase_x := 1
@@ -322,11 +326,55 @@ func _crear_techo_modular() -> void:
 			for pieza in piezas:
 				area_tile_conservada += absf(GeometriaHuella.area_firmada(pieza))
 			var tile_completo := absf(area_tile_conservada - ancho_tile * largo_tile) <= 0.01
-			if es_posicion_luz and valor > 0.10 and tile_completo and piezas.size() == 1:
-				LuminariaScript.crear(self, Vector3(centro.x, alto_m - 0.175, centro.z), ancho_tile - 0.025, largo_tile - 0.025, alto_m, rng)
+			var tile_rectangular_completo := (
+				absf(area_tile_conservada - ancho_tile * largo_tile) <= 0.001
+				and piezas.size() == 1
+				and is_equal_approx(ancho_tile, tam_tile)
+				and is_equal_approx(largo_tile, tam_tile)
+			)
+			var crear_luminaria := es_posicion_luz and valor > 0.10 and tile_completo and piezas.size() == 1
+			if crear_luminaria:
+				_crear_tile(centro, ancho_tile, largo_tile, 0.0, 0.0, false)
+				LuminariaScript.crear(self, Vector3(centro.x, alto_m + LuminariaScript.DESFASE_CENTRO_PANEL_Y, centro.z), ancho_tile - 0.025, largo_tile - 0.025, alto_m, rng)
+			elif tile_rectangular_completo:
+				if not es_posicion_luz and valor > 0.93:
+					_crear_tile(centro, ancho_tile, largo_tile, DESFASE_PLACA_TECHO + rng.randf_range(0.04, 0.12), rng.randf_range(-INCLINACION_PLACA_SUELTA, INCLINACION_PLACA_SUELTA))
+				else:
+					_crear_tile(centro, ancho_tile, largo_tile, DESFASE_PLACA_TECHO)
+			else:
+				for pieza in piezas:
+					_crear_prisma_poligonal("TileTecho", pieza, alto_m + LuminariaScript.PLANO_ENCASTRE_Y + GROSOR_PLACA_TECHO * 0.5 + DESFASE_PLACA_TECHO, GROSOR_PLACA_TECHO, true, false)
+
+func _crear_tile(centro: Vector3, ancho: float, largo: float, elevacion: float = 0.0, inclinacion: float = 0.0, mostrar_malla: bool = true) -> void:
+	var cuerpo := StaticBody3D.new()
+	cuerpo.name = "TileTecho"
+	cuerpo.position = centro + Vector3(0, elevacion, 0)
+	cuerpo.rotation_degrees.z = inclinacion
+	var tamano := Vector3(ancho - 0.025, GROSOR_PLACA_TECHO, largo - 0.025)
+	var forma := BoxShape3D.new()
+	forma.size = tamano
+	var colision := CollisionShape3D.new()
+	colision.shape = forma
+	cuerpo.add_child(colision)
+	if mostrar_malla:
+		var visual := MeshInstance3D.new()
+		var malla := BoxMesh.new()
+		malla.size = tamano
+		visual.mesh = malla
+		visual.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		cuerpo.add_child(visual)
+	add_child(cuerpo)
 
 func _crear_viga_techo(base: PackedVector2Array, y: float) -> void:
 	var piezas := GeometriaHuella.intersecciones(base, _huella())
-	piezas = GeometriaHuella.restar_a_poligonos(piezas, zonas_techo_excluidas)
+	piezas = _sin_astillas(GeometriaHuella.restar_a_poligonos(piezas, zonas_techo_excluidas))
 	for pieza in piezas:
-		_crear_prisma_poligonal("ReticulaTecho", pieza, y, 0.06, false, false)
+		_crear_prisma_poligonal("ReticulaTecho", pieza, y, GROSOR_VIGA_TECHO, false, false)
+
+## Descarta fragmentos mínimos producidos al recortar huellas y vigas.
+func _sin_astillas(piezas: Array[PackedVector2Array]) -> Array[PackedVector2Array]:
+	var utiles: Array[PackedVector2Array] = []
+	for pieza in piezas:
+		if absf(GeometriaHuella.area_firmada(pieza)) > 0.01:
+			utiles.append(pieza)
+	return utiles

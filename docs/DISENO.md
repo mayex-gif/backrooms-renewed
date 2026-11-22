@@ -19,7 +19,8 @@ El jugador puede elegir entre dos modos:
   misma semilla.
 
 El modo diseñado todavía es finito y tiene un máximo de 39 piezas en su plano
-actual. En F4, el conteo determina la extensión del recorrido; los pesos
+actual. Desde **Ajustes de desarrollo** en el menú de pausa, el conteo determina
+la extensión del recorrido; los pesos
 priorizan salas grandes y espacios abiertos al elegir cada ramal. Solo agrega
 salas adyacentes a una ya seleccionada; las puertas que quedan sin pareja se
 sellan. Al pulsar **Aplicar al mapa actual**, reconstruye el nivel en ejecución
@@ -126,12 +127,21 @@ cámaras de 10 × 10 m, salas abiertas de hasta 15 × 20 m y un vestíbulo de
 20 × 15 m. Incluye pasillos, giros, cruces, bifurcaciones, cámaras altas,
 un pasaje bajo y una pieza circular.
 
-Las salas modulares usan placas de 1,25 m. La retícula y las placas comparten
-la altura inferior y sus bordes se tocan para evitar escalones y ranuras. Las
+Las salas modulares usan placas de 1,5 m. En posiciones normales, las caras
+inferiores visibles de placas, luminarias y retícula coinciden a la misma altura
+respecto del piso. Las
 luminarias ocupan casi el tile completo y parten de una distribución cada tres
 tiles; hay placas ausentes, desplazadas, quemadas o intermitentes. La sala
 circular usa la retícula común recortada por su huella. La
 geometría volvió a materiales por defecto, sin tintes ni texturas.
+
+En salas modulares y circulares, las placas sin luminaria se elevan 1,5 cm
+respecto de la retícula para distinguir sus caras sin texturas. Algunas placas
+completas se levantan además entre 4 y 12 cm y se inclinan hasta 3 grados. Las
+placas recortadas por bordes o solapes y las que sostienen luminarias conservan
+su posición para mantener el encastre.
+Las placas completas usan `BoxMesh`; las piezas recortadas conservan la malla
+poligonal común.
 
 Los pisos y las placas del techo se construyen como prismas cerrados: incluyen
 caras superiores, inferiores y laterales. El orden de vértices debe dejar cada
@@ -139,11 +149,26 @@ cara visible desde su lado exterior con el descarte de caras de Godot. Las
 placas ausentes siguen siendo huecos intencionales del cielorraso, cubiertos
 por el plenum superior.
 
-La iluminación usa fluorescentes blancos con alcance local y un relleno
-ambiente suave. El `WorldEnvironment` activa SSAO, SSIL, SDFGI y Glow; F4 permite
-encender/apagar el ambiente y las luminarias y ajustar su intensidad. SSR sigue
-apagado porque las superficies actuales son mates y no deberían reflejar el
-entorno. El panel también permite reconstruir ambos modos con cantidad y pesos.
+La iluminación usa focos locales cuya potencia de base es 0,25 y cuya
+atenuación de distancia es 2. El alcance se ajusta a la altura de la sala más
+0,25 m; el ángulo se calcula para cubrir unos 2,25 m de radio en el piso, con
+límite de 18° a 55°. El ambiente queda en cero y SSIL/SDFGI están apagados para
+evitar que el relleno global ilumine zonas fuera del haz; SSAO y Glow siguen
+activos. La linterna del jugador es independiente. El menú de pausa abre los
+ajustes de ambiente e intensidad. **Vista de techo** superpone
+las celdas de placas sobre el mismo plano del editor. Las luminarias tienen un
+color por estado y un clic alterna encendida, intermitente o averiada; los
+estados se guardan en el JSON del mapa. La primera vez hay que jugar el mapa una
+vez para registrar las posiciones reales de las luminarias. SSR sigue apagado
+porque las superficies actuales son mates y no deberían reflejar el entorno.
+Los focos empiezan a desvanecerse a 30 m de la cámara y desaparecen a 40 m;
+las sombras empiezan a desvanecerse a 13 m. La apariencia final de las zonas
+iluminadas y oscuras queda pendiente de revisión visual.
+Los ajustes de desarrollo también permiten reconstruir mapas compatibles con
+cantidad y pesos distintos.
+
+Se observó que algunos focos sobreiluminan las paredes cercanas. Queda pendiente
+una revisión visual de alcance e intensidad; no se cambió en esta iteración.
 Los dinteles tienen una abertura de 2,45 m; se quitaron los marcos extra para
 evitar z-fighting.
 

@@ -19,7 +19,7 @@ var agachado := false
 var arrastrandose := false
 var modo_noclip := false
 ## Luz ambiente baja: la iluminación la dan los paneles del techo, no el ambiente.
-const ENERGIA_AMBIENTE := 0.14
+const ENERGIA_AMBIENTE := 0.0
 const ALTURA_CAPSULA_PARADO := 1.8
 const ALTURA_CAPSULA_AGACHADO := 1.0
 const ALTURA_CAPSULA_ARRASTRADO := 0.65
@@ -43,10 +43,10 @@ func _configurar_ambiente() -> void:
 	ambiente.ssao_enabled = true
 	ambiente.ssao_radius = 1.2
 	ambiente.ssao_intensity = 1.4
-	ambiente.ssil_enabled = true
+	ambiente.ssil_enabled = false
 	ambiente.ssil_radius = 5.0
 	ambiente.ssil_intensity = 0.7
-	ambiente.sdfgi_enabled = true
+	ambiente.sdfgi_enabled = false
 	ambiente.sdfgi_cascades = 3
 	ambiente.sdfgi_use_occlusion = true
 	ambiente.glow_enabled = true
@@ -56,7 +56,7 @@ func _configurar_ambiente() -> void:
 	ambiente.fog_enabled = true
 	ambiente.fog_light_color = Color(0.1, 0.095, 0.075)
 	ambiente.fog_density = 0.008
-	ambiente.sdfgi_bounce_feedback = 0.6
+	ambiente.sdfgi_bounce_feedback = 0.0
 	world_environment.add_to_group("entornos_juego")
 	world_environment.set_meta("energia_ambiente_base", ENERGIA_AMBIENTE)
 
@@ -106,8 +106,17 @@ func _mostrar_dialogo_salida() -> void:
 	dialogo.dialog_text = "¿Querés volver al menú principal?"
 	dialogo.ok_button_text = "Volver al menú"
 	dialogo.cancel_button_text = "Seguir jugando"
+	dialogo.add_button("Ajustes de desarrollo", true, "ajustes_desarrollo")
 	dialogo.confirmed.connect(func() -> void: get_tree().change_scene_to_file("res://pruebas/menu_principal.tscn"))
 	dialogo.canceled.connect(func() -> void: Input.mouse_mode = Input.MOUSE_MODE_CAPTURED)
+	dialogo.custom_action.connect(func(accion: StringName) -> void:
+		if accion != "ajustes_desarrollo":
+			return
+		dialogo.hide()
+		var panel := get_node_or_null("/root/PanelDesarrollo")
+		if panel != null:
+			panel.call("abrir_ajustes_desarrollo")
+	)
 	escena.add_child(dialogo)
 	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
 	dialogo.popup_centered()
