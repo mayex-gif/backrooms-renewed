@@ -95,8 +95,10 @@ durante esta iteración.
 
 - [ ] Cerrar materiales, iluminación, niebla y sonido ambiental; la iluminación actual es editable desde los ajustes de desarrollo.
 - [ ] Verificar visualmente que al averiar todas las luminarias el ambiente quede oscuro, conservando la linterna del jugador.
-- [ ] Verificar a distancia que los focos se desvanezcan entre 30 m y 40 m sin afectar su alcance cercano.
-- [ ] Ajustar visualmente la intensidad 0,25 y los conos calculados por altura para confirmar que las superficies fuera del haz quedan oscuras y el piso sigue legible.
+- [ ] Verificar a distancia que los focos se conserven hasta 50 m con el desvanecimiento gradual desactivado en la configuración actual.
+- [ ] Ajustar visualmente la intensidad 0,5 y el cono cuadrado ampliado al 115 % (semilado actual 9,2 m); confirmar que ilumina paredes cercanas y el piso de salas de 8 m y 12 m sin lavar el techo.
+- [ ] Revisar el relleno Omni local (0,045 de energía, 2,4 m de alcance) sobre la pared cercana y el techo; comprobar también que sigue los estados apagado e intermitente.
+- [ ] Revisar en Godot el nuevo margen uniforme de placas y luminarias frente a la retícula, en salas rectangulares y circulares; confirmar que desapareció el solapamiento visual.
 - [ ] Revisar el zumbido de fluorescentes con pruebas auditivas y atenuación por distancia.
 - [ ] Preparar build, video corto y publicación en itch.io.
 

@@ -112,7 +112,13 @@ func _ready() -> void:
 		_instancias.append(instancia)
 	for conexion in conexiones:
 		_cerrar_diferencia_de_altura(conexion, definiciones)
-	if not definiciones.is_empty():
+	var inicio: Variant = datos.get("inicio", {})
+	if inicio is Dictionary and inicio.has("x") and inicio.has("z"):
+		# El ángulo del editor apunta en el plano X/Z; el "adelante" del jugador es -Z.
+		var direccion := Vector2.from_angle(deg_to_rad(float(inicio.get("angulo", 0.0))))
+		jugador.global_position = Vector3(float(inicio.x), 0.02, float(inicio.z))
+		jugador.rotation.y = atan2(-direccion.x, -direccion.y)
+	elif not definiciones.is_empty():
 		jugador.global_position = Vector3(rectangulos[0].get_center().x, 0.02, rectangulos[0].get_center().y)
 
 func _agregar_puertas_pareadas(conexion: Dictionary, definiciones: Array[SalaDef], giros: Array[float], origenes: Array[Vector3], sockets: Array[Array]) -> void:

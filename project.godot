@@ -17,6 +17,7 @@ config/icon="res://icon.svg"
 
 [autoload]
 
+Ajustes="*res://sistema/ajustes.gd"
 PanelDesarrollo="*res://pruebas/panel_desarrollo.gd"
 
 [display]

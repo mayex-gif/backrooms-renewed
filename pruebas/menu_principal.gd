@@ -1,6 +1,11 @@
 extends Control
 ## Entrada al nivel diseñado y al generador procedural de pruebas.
 
+const PanelAjustesScript = preload("res://sistema/panel_ajustes.gd")
+
+var _centro_menu: CenterContainer
+var _centro_opciones: CenterContainer
+
 func _ready() -> void:
 	_crear_interfaz()
 
@@ -13,8 +18,9 @@ func _crear_interfaz() -> void:
 	var centro := CenterContainer.new()
 	centro.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	add_child(centro)
+	_centro_menu = centro
 	var panel := PanelContainer.new()
-	panel.custom_minimum_size = Vector2(620, 700)
+	panel.custom_minimum_size = Vector2(620, 0)
 	centro.add_child(panel)
 	var estilo := StyleBoxFlat.new()
 	estilo.bg_color = Color(0.15, 0.14, 0.105, 0.97)
@@ -65,6 +71,9 @@ func _crear_interfaz() -> void:
 		var jugar_mapa := _crear_boton("Jugar último mapa guardado", "Cargá y recorré el mapa personalizado guardado.")
 		jugar_mapa.pressed.connect(_abrir_escena.bind("res://pruebas/mapa_guardado.tscn"))
 		columna.add_child(jugar_mapa)
+	var opciones := _crear_boton("Opciones", "Pantalla completa, sonido, sensibilidad y calidad gráfica.")
+	opciones.pressed.connect(_abrir_opciones)
+	columna.add_child(opciones)
 	var salir := Button.new()
 	salir.text = "Salir"
 	salir.custom_minimum_size.y = 42
@@ -79,6 +88,26 @@ func _crear_boton(texto: String, descripcion: String) -> Button:
 	boton.custom_minimum_size.y = 52
 	boton.add_theme_font_size_override("font_size", 18)
 	return boton
+
+func _abrir_opciones() -> void:
+	_centro_menu.hide()
+	_centro_opciones = CenterContainer.new()
+	_centro_opciones.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	add_child(_centro_opciones)
+	var panel := PanelAjustesScript.new()
+	panel.cerrado.connect(_cerrar_opciones)
+	_centro_opciones.add_child(panel)
+
+func _cerrar_opciones() -> void:
+	if _centro_opciones != null:
+		_centro_opciones.queue_free()
+		_centro_opciones = null
+	_centro_menu.show()
+
+func _unhandled_input(evento: InputEvent) -> void:
+	if evento.is_action_pressed("ui_cancel") and _centro_opciones != null:
+		get_viewport().set_input_as_handled()
+		_cerrar_opciones()
 
 func _abrir_escena(ruta: String) -> void:
 	var error := get_tree().change_scene_to_file(ruta)

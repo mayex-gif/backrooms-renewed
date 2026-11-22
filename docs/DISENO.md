@@ -135,11 +135,12 @@ tiles; hay placas ausentes, desplazadas, quemadas o intermitentes. La sala
 circular usa la retícula común recortada por su huella. La
 geometría volvió a materiales por defecto, sin tintes ni texturas.
 
-En salas modulares y circulares, las placas sin luminaria se elevan 1,5 cm
-respecto de la retícula para distinguir sus caras sin texturas. Algunas placas
-completas se levantan además entre 4 y 12 cm y se inclinan hasta 3 grados. Las
-placas recortadas por bordes o solapes y las que sostienen luminarias conservan
-su posición para mantener el encastre.
+En salas modulares y circulares, las placas y luminarias restan 8 cm al lado
+del módulo de 1,5 m (4 cm por lado); así queda una junta de 5 mm con las barras
+de 7 cm y se evita que se crucen sus mallas. La cara inferior de las
+placas y los paneles luminosos queda al mismo nivel, 0,5 cm sobre la retícula.
+Algunas placas completas se levantan además entre 4 y 12 cm y se inclinan hasta
+3 grados. Las placas recortadas por bordes o solapes conservan su posición.
 Las placas completas usan `BoxMesh`; las piezas recortadas conservan la malla
 poligonal común.
 
@@ -149,26 +150,35 @@ cara visible desde su lado exterior con el descarte de caras de Godot. Las
 placas ausentes siguen siendo huecos intencionales del cielorraso, cubiertos
 por el plenum superior.
 
-La iluminación usa focos locales cuya potencia de base es 0,25 y cuya
-atenuación de distancia es 2. El alcance se ajusta a la altura de la sala más
-0,25 m; el ángulo se calcula para cubrir unos 2,25 m de radio en el piso, con
-límite de 18° a 55°. El ambiente queda en cero y SSIL/SDFGI están apagados para
-evitar que el relleno global ilumine zonas fuera del haz; SSAO y Glow siguen
-activos. La linterna del jugador es independiente. El menú de pausa abre los
+Cada foco se centra en su placa y proyecta una mancha cuadrada suave, con un
+semilado actual de 9,2 m en el piso (nominal 8 m, cono ampliado un 15 %). La
+energía local de base es 0,5. El alcance se calcula hasta las esquinas del
+cuadrado según la altura real de la sala; además, la atenuación pasa
+gradualmente de 2,0 en salas de 4,2 m a 1,2
+en salas de 12 m para que la luz siga llegando al piso. Cada luminaria añade
+un relleno Omni local de energía 0,045 y radio 2,4 m, sin sombras; acompaña el
+estado estable/intermitente/averiado del foco y da un rebote sutil a la pared
+cercana y al techo. El relleno amplio por sala queda desactivado para evitar
+manchas en las paredes. El ambiente base actual es 0,025; SSIL depende de la
+opción de rebote en pantalla y SDFGI queda apagado. SSAO y Glow siguen activos.
+La linterna del jugador es
+independiente. El menú de pausa abre los
 ajustes de ambiente e intensidad. **Vista de techo** superpone
 las celdas de placas sobre el mismo plano del editor. Las luminarias tienen un
 color por estado y un clic alterna encendida, intermitente o averiada; los
 estados se guardan en el JSON del mapa. La primera vez hay que jugar el mapa una
 vez para registrar las posiciones reales de las luminarias. SSR sigue apagado
 porque las superficies actuales son mates y no deberían reflejar el entorno.
-Los focos empiezan a desvanecerse a 30 m de la cámara y desaparecen a 40 m;
-las sombras empiezan a desvanecerse a 13 m. La apariencia final de las zonas
-iluminadas y oscuras queda pendiente de revisión visual.
+Los focos se conservan hasta 50 m de la cámara; no tienen tramo de desvanecimiento
+gradual con la configuración actual. Las sombras empiezan a desvanecerse a 50 m.
+La comprobación visual del borde cuadrado, la luz al pie de salas altas y la
+oscuridad entre focos queda pendiente.
 Los ajustes de desarrollo también permiten reconstruir mapas compatibles con
 cantidad y pesos distintos.
 
-Se observó que algunos focos sobreiluminan las paredes cercanas. Queda pendiente
-una revisión visual de alcance e intensidad; no se cambió en esta iteración.
+Se observaron anteriormente manchas en paredes cercanas. El relleno local nuevo
+se mantiene deliberadamente tenue y de alcance corto; queda pendiente comprobar
+visualmente que aclare la pared junto a la luminaria sin lavar la sala.
 Los dinteles tienen una abertura de 2,45 m; se quitaron los marcos extra para
 evitar z-fighting.
 

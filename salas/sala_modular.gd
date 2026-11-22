@@ -15,7 +15,7 @@ extends Node3D
 const LuminariaScript = preload("res://salas/luminaria.gd")
 const GROSOR_PLACA_TECHO := 0.12
 const GROSOR_VIGA_TECHO := 0.06
-const DESFASE_PLACA_TECHO := 0.015
+const DESFASE_PLACA_TECHO := LuminariaScript.DESFASE_PLACA_TECHO
 const INCLINACION_PLACA_SUELTA := 3.0
 
 func _ready() -> void:
@@ -303,6 +303,7 @@ func _crear_techo_modular() -> void:
 	for z in range(filas_tiles + 1):
 		var pz := limites.position.y + z * tam_tile
 		_crear_viga_techo(GeometriaHuella.rectangulo(limites.size.x, 0.07, Vector2(limites.get_center().x, pz)), alto_m + LuminariaScript.PLANO_ENCASTRE_Y + GROSOR_VIGA_TECHO * 0.5)
+	var luces_operativas := 0
 	for x in columnas_tiles:
 		for z in filas_tiles:
 			var x0 := limites.position.x + x * tam_tile
@@ -335,7 +336,8 @@ func _crear_techo_modular() -> void:
 			var crear_luminaria := es_posicion_luz and valor > 0.10 and tile_completo and piezas.size() == 1
 			if crear_luminaria:
 				_crear_tile(centro, ancho_tile, largo_tile, 0.0, 0.0, false)
-				LuminariaScript.crear(self, Vector3(centro.x, alto_m + LuminariaScript.DESFASE_CENTRO_PANEL_Y, centro.z), ancho_tile - 0.025, largo_tile - 0.025, alto_m, rng)
+				if LuminariaScript.crear(self, Vector3(centro.x, alto_m + LuminariaScript.DESFASE_CENTRO_PANEL_Y, centro.z), ancho_tile - LuminariaScript.MARGEN_PLACA_RETICULA, largo_tile - LuminariaScript.MARGEN_PLACA_RETICULA, alto_m, rng):
+					luces_operativas += 1
 			elif tile_rectangular_completo:
 				if not es_posicion_luz and valor > 0.93:
 					_crear_tile(centro, ancho_tile, largo_tile, DESFASE_PLACA_TECHO + rng.randf_range(0.04, 0.12), rng.randf_range(-INCLINACION_PLACA_SUELTA, INCLINACION_PLACA_SUELTA))
@@ -345,12 +347,14 @@ func _crear_techo_modular() -> void:
 				for pieza in piezas:
 					_crear_prisma_poligonal("TileTecho", pieza, alto_m + LuminariaScript.PLANO_ENCASTRE_Y + GROSOR_PLACA_TECHO * 0.5 + DESFASE_PLACA_TECHO, GROSOR_PLACA_TECHO, true, false)
 
+	LuminariaScript.crear_relleno(self, limites.get_center(), limites.size.length() * 0.5, alto_m, luces_operativas)
+
 func _crear_tile(centro: Vector3, ancho: float, largo: float, elevacion: float = 0.0, inclinacion: float = 0.0, mostrar_malla: bool = true) -> void:
 	var cuerpo := StaticBody3D.new()
 	cuerpo.name = "TileTecho"
 	cuerpo.position = centro + Vector3(0, elevacion, 0)
 	cuerpo.rotation_degrees.z = inclinacion
-	var tamano := Vector3(ancho - 0.025, GROSOR_PLACA_TECHO, largo - 0.025)
+	var tamano := Vector3(ancho - LuminariaScript.MARGEN_PLACA_RETICULA, GROSOR_PLACA_TECHO, largo - LuminariaScript.MARGEN_PLACA_RETICULA)
 	var forma := BoxShape3D.new()
 	forma.size = tamano
 	var colision := CollisionShape3D.new()

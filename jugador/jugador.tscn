@@ -12,8 +12,10 @@ background_color = Color(0.08, 0.08, 0.07, 1)
 ssao_enabled = true
 ssao_radius = 1.2
 ssao_intensity = 1.4
-ssil_intensity = 0.7
-sdfgi_cascades = 3
+ssil_sharpness = 1.0
+sdfgi_use_occlusion = true
+sdfgi_read_sky_light = false
+sdfgi_bounce_feedback = 0.25
 glow_enabled = true
 glow_intensity = 0.35
 glow_strength = 0.45
@@ -34,7 +36,7 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.55, 0)
 current = true
 
 [node name="LuzLinterna" type="SpotLight3D" parent="Cabeza" unique_id=562610092]
-transform = Transform3D(1, 0, 0, 0, 0.9887711, 0.14943814, 0, -0.14943814, 0.9887711, 0.3738296, -0.5083295, -0.19025588)
+transform = Transform3D(1, 0, 0, 0, 0.9887711, 0.14943814, 0, -0.14943814, 0.9887711, 0.3738296, -0.38966143, -0.19025588)
 shadow_enabled = true
 spot_range = 15.202
 spot_attenuation = 2.19

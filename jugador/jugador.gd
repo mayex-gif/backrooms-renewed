@@ -19,7 +19,8 @@ var agachado := false
 var arrastrandose := false
 var modo_noclip := false
 ## Luz ambiente baja: la iluminación la dan los paneles del techo, no el ambiente.
-const ENERGIA_AMBIENTE := 0.0
+const ENERGIA_AMBIENTE := 0.025
+const MenuPausaScript = preload("res://sistema/menu_pausa.gd")
 const ALTURA_CAPSULA_PARADO := 1.8
 const ALTURA_CAPSULA_AGACHADO := 1.0
 const ALTURA_CAPSULA_ARRASTRADO := 0.65
@@ -27,7 +28,15 @@ const ALTURA_CAPSULA_ARRASTRADO := 0.65
 func _ready() -> void:
 	_configurar_controles()
 	_configurar_ambiente()
+	_aplicar_ajustes()
+	Ajustes.ajustes_cambiados.connect(_aplicar_ajustes)
 	Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
+
+## Campo de visión elegido por el jugador en Opciones.
+func _aplicar_ajustes() -> void:
+	var camara := get_node_or_null("Cabeza/Camera3D") as Camera3D
+	if camara != null:
+		camara.fov = Ajustes.campo_vision
 
 func _configurar_ambiente() -> void:
 	var world_environment := get_node_or_null("WorldEnvironment") as WorldEnvironment
@@ -43,9 +52,10 @@ func _configurar_ambiente() -> void:
 	ambiente.ssao_enabled = true
 	ambiente.ssao_radius = 1.2
 	ambiente.ssao_intensity = 1.4
-	ambiente.ssil_enabled = false
-	ambiente.ssil_radius = 5.0
-	ambiente.ssil_intensity = 0.7
+	# Rebote en pantalla: estable, sin horneado y sin recalcular al mover luces.
+	ambiente.ssil_enabled = Ajustes.rebote_pantalla
+	ambiente.ssil_radius = 4.0
+	ambiente.ssil_intensity = 1.0
 	ambiente.sdfgi_enabled = false
 	ambiente.sdfgi_cascades = 3
 	ambiente.sdfgi_use_occlusion = true
@@ -90,36 +100,17 @@ func _input(event: InputEvent) -> void:
 	elif event is InputEventMouseButton and event.pressed and Input.mouse_mode == Input.MOUSE_MODE_VISIBLE:
 		Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
 	elif event is InputEventMouseMotion and Input.mouse_mode == Input.MOUSE_MODE_CAPTURED:
-		rotate_y(-event.relative.x * sensibilidad_mouse)
-		cabeza.rotate_x(-event.relative.y * sensibilidad_mouse)
+		rotate_y(-event.relative.x * sensibilidad_mouse * Ajustes.sensibilidad)
+		cabeza.rotate_x(-event.relative.y * sensibilidad_mouse * Ajustes.sensibilidad)
 		cabeza.rotation.x = clampf(cabeza.rotation.x, deg_to_rad(-80), deg_to_rad(80))
 
 func _mostrar_dialogo_salida() -> void:
 	var escena := get_tree().current_scene
-	var existente := escena.get_node_or_null("DialogoSalidaMenu") as ConfirmationDialog
-	if existente != null:
-		existente.popup_centered()
+	if escena == null or escena.get_node_or_null("MenuPausa") != null:
 		return
-	var dialogo := ConfirmationDialog.new()
-	dialogo.name = "DialogoSalidaMenu"
-	dialogo.title = "Salir de la partida"
-	dialogo.dialog_text = "¿Querés volver al menú principal?"
-	dialogo.ok_button_text = "Volver al menú"
-	dialogo.cancel_button_text = "Seguir jugando"
-	dialogo.add_button("Ajustes de desarrollo", true, "ajustes_desarrollo")
-	dialogo.confirmed.connect(func() -> void: get_tree().change_scene_to_file("res://pruebas/menu_principal.tscn"))
-	dialogo.canceled.connect(func() -> void: Input.mouse_mode = Input.MOUSE_MODE_CAPTURED)
-	dialogo.custom_action.connect(func(accion: StringName) -> void:
-		if accion != "ajustes_desarrollo":
-			return
-		dialogo.hide()
-		var panel := get_node_or_null("/root/PanelDesarrollo")
-		if panel != null:
-			panel.call("abrir_ajustes_desarrollo")
-	)
-	escena.add_child(dialogo)
-	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
-	dialogo.popup_centered()
+	var menu := MenuPausaScript.new()
+	menu.name = "MenuPausa"
+	escena.add_child(menu)
 
 func _physics_process(delta: float) -> void:
 	if _panel_desarrollo_abierto():
@@ -168,6 +159,9 @@ func _physics_process(delta: float) -> void:
 	move_and_slide()
 
 func _panel_desarrollo_abierto() -> bool:
+	# El menú de pausa también detiene al jugador y a la cámara.
+	if not get_tree().get_nodes_in_group("menu_pausa").is_empty():
+		return true
 	for panel in get_tree().get_nodes_in_group("panel_desarrollo"):
 		if panel.has_method("esta_abierto") and panel.call("esta_abierto"):
 			return true
