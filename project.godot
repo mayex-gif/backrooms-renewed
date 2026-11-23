@@ -11,15 +11,16 @@ config_version=5
 [application]
 
 config/name="Backrooms"
-run/main_scene="res://pruebas/menu_principal.tscn"
+run/main_scene="res://escenas/menu_principal.tscn"
 config/features=PackedStringArray("4.7", "Forward Plus")
 config/icon="res://icon.svg"
 
 [autoload]
 
 Ajustes="*res://sistema/ajustes.gd"
-PanelDesarrollo="*res://pruebas/panel_desarrollo.gd"
+PanelDesarrollo="*uid://ctvy7rgu61ix8"
 SelectorPersonaje="*res://sistema/selector_personaje.gd"
+EditorMapa="*uid://civ66iqhwsroy"
 
 [display]
 

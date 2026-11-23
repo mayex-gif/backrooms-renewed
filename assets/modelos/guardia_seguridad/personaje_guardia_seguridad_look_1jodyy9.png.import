@@ -2,20 +2,20 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://b4xbfn3ie5tch"
-path.s3tc="res://.godot/imported/personaje_guardia_seguridad_gen_1s2bq14.png-3196297d321cacf675eb725aeff2ce50.s3tc.ctex"
+uid="uid://b5cbkx6j0c04i"
+path.s3tc="res://.godot/imported/personaje_guardia_seguridad_look_1jodyy9.png-60b20a63e089f2dd95677d70de76524d.s3tc.ctex"
 metadata={
 "imported_formats": ["s3tc_bptc"],
 "vram_texture": true
 }
 generator_parameters={
-"md5": "1d10c2f4e1992796e33a535f6c156bab"
+"md5": "712a0b1f468b5f7da1e69f66bce366d3"
 }
 
 [deps]
 
-source_file="res://assets/modelos/personaje_guardia_seguridad_gen_1s2bq14.png"
-dest_files=["res://.godot/imported/personaje_guardia_seguridad_gen_1s2bq14.png-3196297d321cacf675eb725aeff2ce50.s3tc.ctex"]
+source_file="res://assets/modelos/guardia_seguridad/personaje_guardia_seguridad_look_1jodyy9.png"
+dest_files=["res://.godot/imported/personaje_guardia_seguridad_look_1jodyy9.png-60b20a63e089f2dd95677d70de76524d.s3tc.ctex"]
 
 [params]
 

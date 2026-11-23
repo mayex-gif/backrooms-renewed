@@ -3,13 +3,13 @@
 importer="scene"
 importer_version=1
 type="PackedScene"
-uid="uid://bbvhpk0vha2cj"
-path="res://.godot/imported/personaje_guardia_seguridad.glb-834c51d1509746fd844b52feb9ef0092.scn"
+uid="uid://x842jsw2j5ww"
+path="res://.godot/imported/personaje_casual.glb-b50facbbf83981c66f110506f1cd6b17.scn"
 
 [deps]
 
-source_file="res://assets/modelos/personaje_guardia_seguridad.glb"
-dest_files=["res://.godot/imported/personaje_guardia_seguridad.glb-834c51d1509746fd844b52feb9ef0092.scn"]
+source_file="res://assets/modelos/casual/personaje_casual.glb"
+dest_files=["res://.godot/imported/personaje_casual.glb-b50facbbf83981c66f110506f1cd6b17.scn"]
 
 [params]
 

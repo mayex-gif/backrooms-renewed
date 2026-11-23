@@ -612,7 +612,7 @@ func _cargar_ruta(ruta: String) -> void:
 func _jugar() -> void:
 	if not _guardar_para_jugar():
 		return
-	get_tree().change_scene_to_file("res://pruebas/mapa_guardado.tscn")
+	get_tree().change_scene_to_file("res://escenas/juego_mapa_guardado.tscn")
 
 func _guardar_para_jugar() -> bool:
 	_guardar_actual(true)
@@ -641,16 +641,16 @@ func _solicitar_salir() -> void:
 	if _hay_cambios:
 		_dialogo_salida.popup_centered()
 	else:
-		get_tree().change_scene_to_file("res://pruebas/menu_principal.tscn")
+		get_tree().change_scene_to_file("res://escenas/menu_principal.tscn")
 
 func _guardar_y_salir() -> void:
 	_guardar_actual(true)
-	get_tree().change_scene_to_file("res://pruebas/menu_principal.tscn")
+	get_tree().change_scene_to_file("res://escenas/menu_principal.tscn")
 
 func _accion_salida(accion: StringName) -> void:
 	if accion == "salir":
 		# El mapa actual ya fue autoguardado en user://saves.
-		get_tree().change_scene_to_file("res://pruebas/menu_principal.tscn")
+		get_tree().change_scene_to_file("res://escenas/menu_principal.tscn")
 
 func _indice_tipo(nombre: String) -> int:
 	for i in _catalogo.size():

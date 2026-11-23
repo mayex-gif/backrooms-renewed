@@ -2,20 +2,20 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://cnfah86dqxnou"
-path.s3tc="res://.godot/imported/personaje_guardia_seguridad_eyes_blackbrown.png-0c062b7fa970b8856280556e655a6785.s3tc.ctex"
+uid="uid://cr7lhkpqn5vrf"
+path.s3tc="res://.godot/imported/personaje_guardia_seguridad_outfit_male_casualsuit01_normal.jpg-4dc3f7cada3aa1f4f8364fc1638dadc4.s3tc.ctex"
 metadata={
 "imported_formats": ["s3tc_bptc"],
 "vram_texture": true
 }
 generator_parameters={
-"md5": "afd943099f0dc39025a72109d71b1cf0"
+"md5": "1d10d1d6f35c2bfb1bc1f2d91c4099a9"
 }
 
 [deps]
 
-source_file="res://assets/modelos/personaje_guardia_seguridad_eyes_blackbrown.png"
-dest_files=["res://.godot/imported/personaje_guardia_seguridad_eyes_blackbrown.png-0c062b7fa970b8856280556e655a6785.s3tc.ctex"]
+source_file="res://assets/modelos/guardia_seguridad/personaje_guardia_seguridad_outfit_male_casualsuit01_normal.jpg"
+dest_files=["res://.godot/imported/personaje_guardia_seguridad_outfit_male_casualsuit01_normal.jpg-4dc3f7cada3aa1f4f8364fc1638dadc4.s3tc.ctex"]
 
 [params]
 
@@ -25,12 +25,12 @@ compress/lossy_quality=0.7
 compress/uastc_level=0
 compress/rdo_quality_loss=0.0
 compress/hdr_compression=1
-compress/normal_map=0
+compress/normal_map=1
 compress/channel_pack=0
 mipmaps/generate=true
 mipmaps/limit=-1
-roughness/mode=0
-roughness/src_normal=""
+roughness/mode=1
+roughness/src_normal="res://assets/modelos/personaje_guardia_seguridad_outfit_male_casualsuit01_normal.jpg"
 process/channel_remap/red=0
 process/channel_remap/green=1
 process/channel_remap/blue=2

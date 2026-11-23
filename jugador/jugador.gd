@@ -60,14 +60,14 @@ func _ready() -> void:
 	Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
 
 func _cargar_modelo_seleccionado() -> void:
-	var ruta_modelo := "res://assets/modelos/personaje_casual.glb"
+	var ruta_modelo := "res://assets/modelos/casual/personaje_casual.glb"
 	var selector := get_node_or_null("/root/SelectorPersonaje")
 	if selector != null and selector.has_method("obtener_ruta_modelo"):
 		ruta_modelo = String(selector.call("obtener_ruta_modelo"))
 	var escena_modelo := load(ruta_modelo) as PackedScene
 	if escena_modelo == null:
 		push_warning("No se pudo cargar el personaje '%s'; se usará el modelo casual." % ruta_modelo)
-		escena_modelo = load("res://assets/modelos/personaje_casual.glb") as PackedScene
+		escena_modelo = load("res://assets/modelos/casual/personaje_casual.glb") as PackedScene
 	if escena_modelo == null:
 		push_error("Tampoco se pudo cargar el modelo casual de respaldo.")
 		return
@@ -283,14 +283,26 @@ func _conectar_linterna_a_mano() -> void:
 	_configurar_ik_brazo(esqueleto)
 
 func _configurar_ik_brazo(esqueleto: Skeleton3D) -> void:
+	if is_instance_valid(objetivo_brazo_linterna):
+		objetivo_brazo_linterna.queue_free()
+	if is_instance_valid(ik_brazo_linterna):
+		ik_brazo_linterna.queue_free()
+	
+	print("Esqueleto usado en IK: ", esqueleto.get_path(), " | rightArm idx: ", esqueleto.find_bone("RightArm"), " | rightHand idx: ", esqueleto.find_bone("RightHand"))
 	var hueso_raiz := "upperarm_r" if esqueleto.find_bone("upperarm_r") >= 0 else "RightArm"
 	var hueso_mano := "hand_r" if esqueleto.find_bone("hand_r") >= 0 else "RightHand"
-	if esqueleto.find_bone(hueso_raiz) < 0 or esqueleto.find_bone(hueso_mano) < 0:
-		push_warning("El esqueleto no tiene los huesos necesarios para apuntar el brazo con la cámara.")
+	var idx_raiz := esqueleto.find_bone(hueso_raiz)
+	var idx_mano := esqueleto.find_bone(hueso_mano)
+
+	if idx_raiz < 0 or idx_mano < 0:
+		push_warning("El esqueleto no tiene los huesos necesarios (%s / %s) para apuntar el brazo." % [hueso_raiz, hueso_mano])
 		return
+
 	objetivo_brazo_linterna = Node3D.new()
 	objetivo_brazo_linterna.name = "ObjetivoBrazoLinterna"
 	esqueleto.add_child(objetivo_brazo_linterna)
+	objetivo_brazo_linterna.global_position = esqueleto.to_global(esqueleto.get_bone_global_pose(idx_mano).origin)
+
 	ik_brazo_linterna = SkeletonIK3D.new()
 	ik_brazo_linterna.name = "IKBrazoLinterna"
 	esqueleto.add_child(ik_brazo_linterna)
@@ -300,7 +312,7 @@ func _configurar_ik_brazo(esqueleto: Skeleton3D) -> void:
 	ik_brazo_linterna.max_iterations = 12
 	ik_brazo_linterna.min_distance = 0.01
 	ik_brazo_linterna.process_priority = 100
-	ik_brazo_linterna.start()
+	# ik_brazo_linterna.start()
 
 func _actualizar_apuntado_linterna() -> void:
 	if camara_jugador == null:

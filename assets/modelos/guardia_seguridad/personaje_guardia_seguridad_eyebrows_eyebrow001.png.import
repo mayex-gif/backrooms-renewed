@@ -2,20 +2,20 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://cijc1gq2lahkq"
-path.s3tc="res://.godot/imported/personaje_casual_young_caucasian_female_special_suit.png-1695d0f8f8e0bd0fd6b50c43d4b01c9a.s3tc.ctex"
+uid="uid://dphtwp87on1u6"
+path.s3tc="res://.godot/imported/personaje_guardia_seguridad_eyebrows_eyebrow001.png-3632a40d364e27c1188055fc1bd6e676.s3tc.ctex"
 metadata={
 "imported_formats": ["s3tc_bptc"],
 "vram_texture": true
 }
 generator_parameters={
-"md5": "269a691dce58f965eb582929b5a3ac42"
+"md5": "c36320a5a5fe35181a819621e23b7b1e"
 }
 
 [deps]
 
-source_file="res://assets/modelos/personaje_casual_young_caucasian_female_special_suit.png"
-dest_files=["res://.godot/imported/personaje_casual_young_caucasian_female_special_suit.png-1695d0f8f8e0bd0fd6b50c43d4b01c9a.s3tc.ctex"]
+source_file="res://assets/modelos/guardia_seguridad/personaje_guardia_seguridad_eyebrows_eyebrow001.png"
+dest_files=["res://.godot/imported/personaje_guardia_seguridad_eyebrows_eyebrow001.png-3632a40d364e27c1188055fc1bd6e676.s3tc.ctex"]
 
 [params]
 

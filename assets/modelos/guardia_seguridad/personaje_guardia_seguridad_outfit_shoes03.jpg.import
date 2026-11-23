@@ -2,20 +2,20 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://ctywq7kccs2c8"
-path.s3tc="res://.godot/imported/personaje_guardia_seguridad_eyelashes_eyelashes01.png-cdcb8fd6290af2841a9790c3f1730d15.s3tc.ctex"
+uid="uid://c5lq7c1ywscor"
+path.s3tc="res://.godot/imported/personaje_guardia_seguridad_outfit_shoes03.jpg-c2470c1c534df9c8f71ef43529e384f4.s3tc.ctex"
 metadata={
 "imported_formats": ["s3tc_bptc"],
 "vram_texture": true
 }
 generator_parameters={
-"md5": "c03caa5abcb645d8429683663e35f1b5"
+"md5": "ff93b3b8bba0ba5f5ba269c99c070104"
 }
 
 [deps]
 
-source_file="res://assets/modelos/personaje_guardia_seguridad_eyelashes_eyelashes01.png"
-dest_files=["res://.godot/imported/personaje_guardia_seguridad_eyelashes_eyelashes01.png-cdcb8fd6290af2841a9790c3f1730d15.s3tc.ctex"]
+source_file="res://assets/modelos/guardia_seguridad/personaje_guardia_seguridad_outfit_shoes03.jpg"
+dest_files=["res://.godot/imported/personaje_guardia_seguridad_outfit_shoes03.jpg-c2470c1c534df9c8f71ef43529e384f4.s3tc.ctex"]
 
 [params]
 

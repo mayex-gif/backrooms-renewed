@@ -2,20 +2,20 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://ixnkbyxb7nva"
-path.s3tc="res://.godot/imported/personaje_guardia_seguridad_skin_roughness.png-82f8f07e1ecc4e8563f8f1b82f2b7f1a.s3tc.ctex"
+uid="uid://bj6csdx57hm0c"
+path.s3tc="res://.godot/imported/personaje_guardia_seguridad_gen_hair_card.png-88173176fc03c83932021ab72a15d029.s3tc.ctex"
 metadata={
 "imported_formats": ["s3tc_bptc"],
 "vram_texture": true
 }
 generator_parameters={
-"md5": "9a42152f78666a633e593bcc89153f0c"
+"md5": "e194df9b31e47eccf8aeebd8e57f8f3a"
 }
 
 [deps]
 
-source_file="res://assets/modelos/personaje_guardia_seguridad_skin_roughness.png"
-dest_files=["res://.godot/imported/personaje_guardia_seguridad_skin_roughness.png-82f8f07e1ecc4e8563f8f1b82f2b7f1a.s3tc.ctex"]
+source_file="res://assets/modelos/guardia_seguridad/personaje_guardia_seguridad_gen_hair_card.png"
+dest_files=["res://.godot/imported/personaje_guardia_seguridad_gen_hair_card.png-88173176fc03c83932021ab72a15d029.s3tc.ctex"]
 
 [params]
 

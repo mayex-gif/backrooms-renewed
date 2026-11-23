@@ -1,6 +1,6 @@
-[gd_scene load_steps=2 format=3]
+[gd_scene format=3 uid="uid://bsx88bgygn2av"]
 
-[ext_resource type="Script" path="res://salas/sala_modular.gd" id="1_builder"]
+[ext_resource type="Script" uid="uid://c00i8rodepc47" path="res://salas/sala_modular.gd" id="1_builder"]
 
-[node name="SalaModular" type="Node3D"]
+[node name="SalaModular" type="Node3D" unique_id=234918617]
 script = ExtResource("1_builder")

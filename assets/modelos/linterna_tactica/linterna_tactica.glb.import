@@ -3,13 +3,13 @@
 importer="scene"
 importer_version=1
 type="PackedScene"
-uid="uid://x842jsw2j5ww"
-path="res://.godot/imported/personaje_casual.glb-5436c4da72208baa8084939938a99994.scn"
+uid="uid://ebx12kpe7f17"
+path="res://.godot/imported/linterna_tactica.glb-5355555558eada36a6dcfd729686e586.scn"
 
 [deps]
 
-source_file="res://assets/modelos/personaje_casual.glb"
-dest_files=["res://.godot/imported/personaje_casual.glb-5436c4da72208baa8084939938a99994.scn"]
+source_file="res://assets/modelos/linterna_tactica/linterna_tactica.glb"
+dest_files=["res://.godot/imported/linterna_tactica.glb-5355555558eada36a6dcfd729686e586.scn"]
 
 [params]
 

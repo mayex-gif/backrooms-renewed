@@ -2,20 +2,20 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://y3mtkda514yk"
-path.s3tc="res://.godot/imported/personaje_guardia_seguridad_teeth_teeth_base.png-cc357ccd5963d4ee6f56e9070097f2cb.s3tc.ctex"
+uid="uid://04g5ae6ak1n5"
+path.s3tc="res://.godot/imported/personaje_casual_young_caucasian_female_special_suit.png-5c6dc67228a161fade87b270951a2065.s3tc.ctex"
 metadata={
 "imported_formats": ["s3tc_bptc"],
 "vram_texture": true
 }
 generator_parameters={
-"md5": "3eacd834a8385fe46b812dceb5bcca97"
+"md5": "269a691dce58f965eb582929b5a3ac42"
 }
 
 [deps]
 
-source_file="res://assets/modelos/personaje_guardia_seguridad_teeth_teeth_base.png"
-dest_files=["res://.godot/imported/personaje_guardia_seguridad_teeth_teeth_base.png-cc357ccd5963d4ee6f56e9070097f2cb.s3tc.ctex"]
+source_file="res://assets/modelos/casual/personaje_casual_young_caucasian_female_special_suit.png"
+dest_files=["res://.godot/imported/personaje_casual_young_caucasian_female_special_suit.png-5c6dc67228a161fade87b270951a2065.s3tc.ctex"]
 
 [params]
 

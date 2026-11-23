@@ -5,11 +5,11 @@ const RUTA_CONFIGURACION := "user://preferencias_personaje.cfg"
 const PERSONAJES: Dictionary = {
 	"casual": {
 		"nombre": "Explorador casual",
-		"ruta": "res://assets/modelos/personaje_casual.glb"
+		"ruta": "res://assets/modelos/casual/personaje_casual.glb"
 	},
 	"guardia_seguridad": {
 		"nombre": "Guardia de seguridad",
-		"ruta": "res://assets/modelos/personaje_guardia_seguridad.glb"
+		"ruta": "res://assets/modelos/guardia_seguridad/personaje_guardia_seguridad.glb"
 	}
 }
 

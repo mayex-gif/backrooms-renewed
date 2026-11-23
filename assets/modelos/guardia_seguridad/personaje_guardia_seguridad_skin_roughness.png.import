@@ -2,20 +2,20 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://dphtwp87on1u6"
-path.s3tc="res://.godot/imported/personaje_guardia_seguridad_eyebrows_eyebrow001.png-528b1c90edc40cb3397d224357ebd53d.s3tc.ctex"
+uid="uid://ixnkbyxb7nva"
+path.s3tc="res://.godot/imported/personaje_guardia_seguridad_skin_roughness.png-ac642d9e90a89d87e64f42ae84a3ffc0.s3tc.ctex"
 metadata={
 "imported_formats": ["s3tc_bptc"],
 "vram_texture": true
 }
 generator_parameters={
-"md5": "c36320a5a5fe35181a819621e23b7b1e"
+"md5": "9a42152f78666a633e593bcc89153f0c"
 }
 
 [deps]
 
-source_file="res://assets/modelos/personaje_guardia_seguridad_eyebrows_eyebrow001.png"
-dest_files=["res://.godot/imported/personaje_guardia_seguridad_eyebrows_eyebrow001.png-528b1c90edc40cb3397d224357ebd53d.s3tc.ctex"]
+source_file="res://assets/modelos/guardia_seguridad/personaje_guardia_seguridad_skin_roughness.png"
+dest_files=["res://.godot/imported/personaje_guardia_seguridad_skin_roughness.png-ac642d9e90a89d87e64f42ae84a3ffc0.s3tc.ctex"]
 
 [params]
 

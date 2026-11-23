@@ -3,13 +3,13 @@
 importer="scene"
 importer_version=1
 type="PackedScene"
-uid="uid://ebx12kpe7f17"
-path="res://.godot/imported/linterna_tactica.glb-4098d6de51668a5e0c80d49deebc9d0e.scn"
+uid="uid://bbvhpk0vha2cj"
+path="res://.godot/imported/personaje_guardia_seguridad.glb-9bb94caec55f8d5e1eca4cfe005c1666.scn"
 
 [deps]
 
-source_file="res://assets/modelos/linterna_tactica.glb"
-dest_files=["res://.godot/imported/linterna_tactica.glb-4098d6de51668a5e0c80d49deebc9d0e.scn"]
+source_file="res://assets/modelos/guardia_seguridad/personaje_guardia_seguridad.glb"
+dest_files=["res://.godot/imported/personaje_guardia_seguridad.glb-9bb94caec55f8d5e1eca4cfe005c1666.scn"]
 
 [params]
 

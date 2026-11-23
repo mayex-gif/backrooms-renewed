@@ -1,8 +1,8 @@
-[gd_scene load_steps=2 format=3]
+[gd_scene format=3 uid="uid://kbktac7wmjtu"]
 
 [ext_resource type="Script" path="res://pruebas/editor_mapa.gd" id="1"]
 
-[node name="EditorMapa" type="Control"]
+[node name="EditorMapa" type="Control" unique_id=1835746446]
 layout_mode = 3
 anchors_preset = 15
 anchor_right = 1.0
