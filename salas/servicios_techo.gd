@@ -5,6 +5,49 @@ const RADIO_TUBERIA_AGUA := 0.045
 const RADIO_TUBERIA_GAS := 0.03
 const ANCHO_BANDEJA := 0.12
 const ALTO_BANDEJA := 0.06
+## Altura (sobre el cielorraso) a la que están los soportes que cuelgan del forjado.
+const ALTURA_FORJADO := 1.85
+
+## Acumula la geometría de cada material en una sola malla (una MeshInstance3D por
+## material en vez de cientos de nodos sueltos).
+class Acumulador:
+	var mallas: Dictionary = {}
+
+	func _surface(material: Material) -> SurfaceTool:
+		if not mallas.has(material):
+			mallas[material] = SurfaceTool.new()
+		return mallas[material]
+
+	func caja(material: Material, centro: Vector3, tam: Vector3, giro_y := 0.0) -> void:
+		var m := BoxMesh.new()
+		m.size = tam
+		_surface(material).append_from(m, 0, Transform3D(Basis(Vector3.UP, giro_y), centro))
+
+	## eje: 0 = a lo largo de X, 1 = vertical, 2 = a lo largo de Z.
+	func cilindro(material: Material, centro: Vector3, radio: float, largo: float, eje: int, segmentos := 10) -> void:
+		var m := CylinderMesh.new()
+		m.top_radius = radio
+		m.bottom_radius = radio
+		m.height = largo
+		m.radial_segments = segmentos
+		m.rings = 1
+		var base := Basis()
+		if eje == 0:
+			base = Basis(Vector3.BACK, PI * 0.5)
+		elif eje == 2:
+			base = Basis(Vector3.RIGHT, PI * 0.5)
+		_surface(material).append_from(m, 0, Transform3D(base, centro))
+
+	func volcar(parent: Node3D, nombre: String) -> void:
+		for material in mallas:
+			var st: SurfaceTool = mallas[material]
+			st.set_material(material)
+			var instancia := MeshInstance3D.new()
+			instancia.name = nombre
+			instancia.mesh = st.commit()
+			instancia.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+			parent.add_child(instancia)
+
 
 static func crear(parent: Node3D, huella: PackedVector2Array, alto_sala: float, zonas_excluidas: Array = []) -> void:
 	if huella.size() < 3:
@@ -14,16 +57,18 @@ static func crear(parent: Node3D, huella: PackedVector2Array, alto_sala: float, 
 		return
 	var limites := GeometriaHuella.limites(huella)
 	var centro := limites.get_center()
-	var material_agua := _material(Color(0.16, 0.22, 0.25), 0.35)
-	var material_gas := _material(Color(0.28, 0.23, 0.15), 0.3)
-	var material_cables := _material(Color(0.24, 0.23, 0.2), 0.25)
-	var material_ducto := _material(Color(0.2, 0.19, 0.16), 0.2)
+	var m_agua := _material(Color(0.55, 0.36, 0.22), 0.85, 0.45)    # cobre oxidado
+	var m_gas := _material(Color(0.78, 0.62, 0.12), 0.1, 0.55)      # amarillo de gas
+	var m_bandeja := _material(Color(0.42, 0.42, 0.40), 0.7, 0.5)
+	var m_cable := _material(Color(0.07, 0.07, 0.07), 0.0, 0.7)
+	var m_ducto := _material(Color(0.52, 0.54, 0.55), 0.8, 0.4)     # chapa galvanizada
+	var m_soporte := _material(Color(0.30, 0.30, 0.29), 0.6, 0.6)
+	var m_conduit := _material(Color(0.62, 0.62, 0.6), 0.6, 0.45)
+	var acum := Acumulador.new()
 
-	# El tendido queda en la mitad inferior del plenum para ser visible desde
-	# placas faltantes y no tocar las placas levantadas.
+	var y_cables := alto_sala + 0.32
 	var y_agua := alto_sala + 0.48
 	var y_gas := alto_sala + 0.66
-	var y_cables := alto_sala + 0.32
 	var y_ducto := alto_sala + 0.95
 	var limites_z := Vector2(limites.position.y, limites.end.y)
 	var limites_x := Vector2(limites.position.x, limites.end.x)
@@ -39,23 +84,25 @@ static func crear(parent: Node3D, huella: PackedVector2Array, alto_sala: float, 
 	while primera_x + paso <= limites_x.y - 0.25:
 		primera_x += paso
 
+	var techo_servicios := alto_sala + ALTURA_FORJADO
 	var z := primera_z
 	while z <= limites_z.y + 0.001:
 		for region in regiones:
 			var extremos := _extremos_corte(region, z, true)
-			if extremos.size() == 2:
-				_agregar_tuberia(parent, Vector3(extremos[0], y_agua, z), Vector3(extremos[1], y_agua, z), RADIO_TUBERIA_AGUA, material_agua, "TuberiaAgua")
-				_agregar_ducto(parent, Vector3(extremos[0], y_ducto, z), Vector3(extremos[1], y_ducto, z), material_ducto)
+			if extremos.size() == 2 and extremos[1] - extremos[0] >= 0.5:
+				_tubo(acum, m_agua, m_soporte, Vector3(extremos[0], y_agua, z), Vector3(extremos[1], y_agua, z), RADIO_TUBERIA_AGUA, techo_servicios, true)
+				_ducto(acum, m_ducto, m_soporte, Vector3(extremos[0], y_ducto, z), Vector3(extremos[1], y_ducto, z), techo_servicios)
 		z += paso
 
 	var x := primera_x
 	while x <= limites_x.y + 0.001:
 		for region in regiones:
 			var extremos := _extremos_corte(region, x, false)
-			if extremos.size() == 2:
-				_agregar_tuberia(parent, Vector3(x, y_gas, extremos[0]), Vector3(x, y_gas, extremos[1]), RADIO_TUBERIA_GAS, material_gas, "TuberiaGas")
-				_agregar_bandeja(parent, Vector3(x, y_cables, extremos[0]), Vector3(x, y_cables, extremos[1]), material_cables)
+			if extremos.size() == 2 and extremos[1] - extremos[0] >= 0.5:
+				_tubo(acum, m_gas, m_soporte, Vector3(x, y_gas, extremos[0]), Vector3(x, y_gas, extremos[1]), RADIO_TUBERIA_GAS, techo_servicios, false)
+				_bandeja(acum, m_bandeja, m_cable, m_conduit, m_soporte, Vector3(x, y_cables, extremos[0]), Vector3(x, y_cables, extremos[1]), techo_servicios)
 		x += paso
+	acum.volcar(parent, "ServiciosTecho")
 
 static func _extremos_corte(huella: PackedVector2Array, cota: float, horizontal: bool) -> PackedFloat32Array:
 	var cruces := PackedFloat32Array()
@@ -77,63 +124,60 @@ static func _extremos_corte(huella: PackedVector2Array, cota: float, horizontal:
 	cruces.sort()
 	return PackedFloat32Array([cruces[0], cruces[-1]])
 
-static func _agregar_tuberia(parent: Node3D, inicio: Vector3, fin: Vector3, radio: float, material: StandardMaterial3D, nombre: String) -> void:
+## Tubo con bridas cada ~1,5 m y abrazaderas que lo cuelgan del forjado.
+static func _tubo(acum: Acumulador, material: Material, soporte: Material, inicio: Vector3, fin: Vector3, radio: float, y_forjado: float, a_lo_largo_x: bool) -> void:
 	var largo := inicio.distance_to(fin)
-	if largo < 0.5:
-		return
-	var tubo := MeshInstance3D.new()
-	tubo.name = nombre
-	var malla := CylinderMesh.new()
-	malla.top_radius = radio
-	malla.bottom_radius = radio
-	malla.height = largo
-	malla.radial_segments = 8
-	tubo.mesh = malla
-	tubo.position = (inicio + fin) * 0.5
-	if absf(fin.x - inicio.x) > absf(fin.z - inicio.z):
-		tubo.rotation.z = PI * 0.5
-	else:
-		tubo.rotation.x = PI * 0.5
-	tubo.material_override = material
-	tubo.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-	parent.add_child(tubo)
+	var centro := (inicio + fin) * 0.5
+	var eje := 0 if a_lo_largo_x else 2
+	acum.cilindro(material, centro, radio, largo, eje)
+	var n := maxi(int(largo / 1.5), 1)
+	for i in n + 1:
+		var t := (float(i) + 0.5) / float(n + 1) if i < n else -1.0
+		if t < 0.0:
+			break
+		var p := inicio.lerp(fin, t)
+		acum.cilindro(soporte, p, radio * 1.35, 0.07, eje, 10)
+		var alto := y_forjado - p.y
+		acum.cilindro(soporte, Vector3(p.x, p.y + alto * 0.5, p.z), 0.008, alto, 1, 6)
 
-static func _agregar_ducto(parent: Node3D, inicio: Vector3, fin: Vector3, material: StandardMaterial3D) -> void:
+
+static func _ducto(acum: Acumulador, material: Material, soporte: Material, inicio: Vector3, fin: Vector3, y_forjado: float) -> void:
 	var largo := inicio.distance_to(fin)
-	if largo < 0.5:
-		return
-	var ducto := MeshInstance3D.new()
-	ducto.name = "DuctoVentilacion"
-	var malla := BoxMesh.new()
-	malla.size = Vector3(largo, ALTO_BANDEJA * 2.0, 0.22)
-	ducto.mesh = malla
-	ducto.position = (inicio + fin) * 0.5
-	if absf(fin.x - inicio.x) <= absf(fin.z - inicio.z):
-		ducto.rotation.y = PI * 0.5
-	ducto.material_override = material
-	ducto.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-	parent.add_child(ducto)
+	var centro := (inicio + fin) * 0.5
+	acum.caja(material, centro, Vector3(largo, ALTO_BANDEJA * 2.0, 0.24))
+	var n := maxi(int(largo / 1.2), 1)
+	for i in n:
+		var p := inicio.lerp(fin, (float(i) + 0.5) / float(n))
+		acum.caja(soporte, p, Vector3(0.05, ALTO_BANDEJA * 2.0 + 0.03, 0.27))
+		var alto := y_forjado - (p.y + ALTO_BANDEJA)
+		if alto > 0.05:
+			acum.cilindro(soporte, Vector3(p.x, p.y + ALTO_BANDEJA + alto * 0.5, p.z - 0.1), 0.008, alto, 1, 6)
+			acum.cilindro(soporte, Vector3(p.x, p.y + ALTO_BANDEJA + alto * 0.5, p.z + 0.1), 0.008, alto, 1, 6)
 
-static func _agregar_bandeja(parent: Node3D, inicio: Vector3, fin: Vector3, material: StandardMaterial3D) -> void:
+
+## Bandeja portacables abierta, con tres cables adentro y un caño conduit al lado.
+static func _bandeja(acum: Acumulador, bandeja: Material, cable: Material, conduit: Material, soporte: Material, inicio: Vector3, fin: Vector3, y_forjado: float) -> void:
 	var largo := inicio.distance_to(fin)
-	if largo < 0.5:
-		return
-	var bandeja := MeshInstance3D.new()
-	bandeja.name = "BandejaElectricidad"
-	var malla := BoxMesh.new()
-	malla.size = Vector3(largo, ALTO_BANDEJA, ANCHO_BANDEJA)
-	bandeja.mesh = malla
-	bandeja.position = (inicio + fin) * 0.5
-	bandeja.rotation.y = PI * 0.5
-	bandeja.material_override = material
-	bandeja.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-	parent.add_child(bandeja)
+	var centro := (inicio + fin) * 0.5
+	var mitad := ANCHO_BANDEJA * 0.5
+	acum.caja(bandeja, centro + Vector3(0, -ALTO_BANDEJA * 0.5, 0), Vector3(ANCHO_BANDEJA, 0.012, largo))
+	acum.caja(bandeja, centro + Vector3(-mitad, 0, 0), Vector3(0.012, ALTO_BANDEJA, largo))
+	acum.caja(bandeja, centro + Vector3(mitad, 0, 0), Vector3(0.012, ALTO_BANDEJA, largo))
+	for dx in [-0.03, 0.0, 0.03]:
+		acum.cilindro(cable, centro + Vector3(dx, -ALTO_BANDEJA * 0.5 + 0.02, 0), 0.012, largo * 0.98, 2, 6)
+	acum.cilindro(conduit, centro + Vector3(0.12, 0.0, 0), 0.016, largo, 2, 8)
+	var n := maxi(int(largo / 1.2), 1)
+	for i in n:
+		var p := inicio.lerp(fin, (float(i) + 0.5) / float(n))
+		acum.caja(soporte, p + Vector3(0, -ALTO_BANDEJA * 0.5 - 0.01, 0), Vector3(ANCHO_BANDEJA + 0.06, 0.012, 0.03))
+		var alto := y_forjado - p.y
+		acum.cilindro(soporte, Vector3(p.x - mitad - 0.02, p.y + alto * 0.5, p.z), 0.008, alto, 1, 6)
+		acum.cilindro(soporte, Vector3(p.x + mitad + 0.02, p.y + alto * 0.5, p.z), 0.008, alto, 1, 6)
 
-static func _material(color: Color, metalness: float) -> StandardMaterial3D:
+
+static func _material(color: Color, metalico: float, rugosidad: float) -> StandardMaterial3D:
 	var material := StandardMaterial3D.new()
 	material.albedo_color = color
-	material.metallic = metalness
-	material.roughness = 0.75
-	material.emission_enabled = true
-	material.emission = color * 0.18
+	material.metallic = metalico
+	material.roughness = rugosidad
 	return material

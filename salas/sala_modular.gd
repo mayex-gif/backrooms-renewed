@@ -260,7 +260,7 @@ func _tipo_material_superficie(nombre: String) -> String:
 		"Piso":
 			return MaterialesAmbiente.PISO
 		"TileTecho":
-			return MaterialesAmbiente.PLACA_TECHO
+			return MaterialesAmbiente.PLACA_RECORTADA
 		"Plenum superior":
 			return MaterialesAmbiente.PLENUM
 		"ReticulaTecho":
@@ -494,7 +494,7 @@ func _crear_tile(centro: Vector3, ancho: float, largo: float, elevacion: float =
 		var malla := BoxMesh.new()
 		malla.size = tamano
 		visual.mesh = malla
-		MaterialesAmbiente.aplicar(visual, MaterialesAmbiente.PLACA_TECHO)
+		MaterialesAmbiente.aplicar(visual, MaterialesAmbiente.PLACA_TECHO, hash(Vector2i(roundi(centro.x * 10.0), roundi(centro.z * 10.0))))
 		visual.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 		cuerpo.add_child(visual)
 	add_child(cuerpo)

@@ -169,7 +169,7 @@ func _crear_tile(posicion: Vector3, tamano: float, mostrar_malla: bool = true) -
 		var malla := BoxMesh.new()
 		malla.size = forma.size
 		visual.mesh = malla
-		MaterialesAmbiente.aplicar(visual, MaterialesAmbiente.PLACA_TECHO)
+		MaterialesAmbiente.aplicar(visual, MaterialesAmbiente.PLACA_TECHO, hash(Vector2i(roundi(posicion.x * 10.0), roundi(posicion.z * 10.0))))
 		visual.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 		cuerpo.add_child(visual)
 	add_child(cuerpo)

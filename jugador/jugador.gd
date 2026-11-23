@@ -41,14 +41,26 @@ var _pos_base_conjunto := Vector3(0.28, -0.22, -0.45)
 var _rot_base_conjunto := Vector3(-PI / 2.0, 0.0, 0.0)
 var _rot_base_modelo := Vector3.ZERO
 var _log_anim_timer := 0.0
+## Script que corrige la pose del esqueleto (mano con linterna, agachado, arrastrado).
+var modificador_pose: SkeletonModifier3D
+var mezcla_agachado := 0.0
+var mezcla_tumbado := 0.0
+var mezcla_linterna := 1.0
+var intensidad_gateo := 0.0
 var _ultima_anim_impresa := ""
 
 var _pos_camara_base := Vector3(0.0, 0.0, -0.18)
 var _tiempo_bobbing_camara := 0.0
 
 ## Luz ambiente baja: la iluminación la dan los paneles del techo, no el ambiente.
-const ENERGIA_AMBIENTE := 0.1
+const ENERGIA_AMBIENTE := 0.025
 const MenuPausaScript = preload("res://sistema/menu_pausa.gd")
+const PosePersonajeScript = preload("res://jugador/pose_personaje.gd")
+## En el GLB la linterna apunta por su eje +Y y mide 21 cm hasta el lente.
+const LARGO_LINTERNA := 0.21
+const VELOCIDAD_MEZCLA_POSTURA := 6.0
+## Imprime el estado de la animación cada medio segundo (solo para depurar).
+const DEPURAR_ANIMACION := false
 const ALTURA_CAPSULA_PARADO := 1.8
 const ALTURA_CAPSULA_AGACHADO := 1.0
 const ALTURA_CAPSULA_ARRASTRADO := 0.65
@@ -195,9 +207,9 @@ func _configurar_ambiente() -> void:
 		return
 	var ambiente := world_environment.environment
 	ambiente.background_mode = Environment.BG_COLOR
-	ambiente.background_color = Color(0.035, 0.033, 0.027)
+	ambiente.background_color = Color(0.0, 0.0, 0.0)
 	ambiente.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
-	ambiente.ambient_light_color = Color(0.5, 0.5, 0.46)
+	ambiente.ambient_light_color = Color(0.45, 0.43, 0.38)
 	ambiente.ambient_light_energy = ENERGIA_AMBIENTE
 	ambiente.tonemap_mode = Environment.TONE_MAPPER_FILMIC
 	ambiente.ssao_enabled = true
@@ -210,10 +222,12 @@ func _configurar_ambiente() -> void:
 	ambiente.sdfgi_cascades = 3
 	ambiente.sdfgi_use_occlusion = true
 	ambiente.glow_enabled = true
-	ambiente.glow_intensity = 0.35
+	ambiente.glow_intensity = 0.25
 	ambiente.glow_strength = 0.45
 	ambiente.fog_enabled = true
-	ambiente.fog_light_color = Color(0.1, 0.095, 0.075)
+	# La niebla volumétrica casi no se ve con esta densidad y es cara con muchas luces.
+	ambiente.volumetric_fog_enabled = false
+	ambiente.fog_light_color = Color(0.012, 0.011, 0.008)
 	ambiente.fog_density = 0.008
 	ambiente.sdfgi_bounce_feedback = 0.0
 	world_environment.add_to_group("entornos_juego")
@@ -335,10 +349,45 @@ func _physics_process(delta: float) -> void:
 	elif moviendose:
 		animacion = "run" if corriendo else "walk"
 	_actualizar_animacion_jugador(animacion)
+	_actualizar_pose(delta, moviendose and tiene_input, vel_horiz)
 	_log_estado_animacion(delta)
 
+## Metros por segundo que recorre el cuerpo con la animación a velocidad 1 (medido en los
+## clips). Con speed_scale = velocidad real / este valor, el pie apoyado no patina.
+## Si bajás velocidad_caminar / velocidad_correr, la animación se enlentece sola.
+func _velocidad_natural_animacion(correr: bool) -> float:
+	var guardia := false
+	if modificador_pose != null:
+		guardia = bool(modificador_pose.get("es_mixamo"))
+	if guardia:
+		return 3.95 if correr else 1.65
+	return 3.6 if correr else 1.06
+
+
+## Mezcla las posturas y se las pasa a pose_personaje.gd; además ajusta la velocidad
+## de la animación a la velocidad real para que los pies no patinen.
+func _actualizar_pose(delta: float, moviendose: bool, vel_horiz: float) -> void:
+	if animador_jugador != null:
+		var corriendo_anim := animacion_jugador_actual.to_lower().ends_with("run")
+		var natural := _velocidad_natural_animacion(corriendo_anim)
+		var escala := clampf(vel_horiz / natural, 0.3, 3.0) if moviendose else 1.0
+		animador_jugador.speed_scale = escala
+	var paso := VELOCIDAD_MEZCLA_POSTURA * delta
+	mezcla_agachado = move_toward(mezcla_agachado, 1.0 if agachado else 0.0, paso)
+	mezcla_tumbado = move_toward(mezcla_tumbado, 1.0 if arrastrandose else 0.0, paso)
+	mezcla_linterna = move_toward(mezcla_linterna, 1.0 if linterna_encendida else 0.0, 4.0 * delta)
+	intensidad_gateo = move_toward(intensidad_gateo, 1.0 if (moviendose and arrastrandose) else 0.0, 5.0 * delta)
+	if modificador_pose == null:
+		return
+	modificador_pose.set("mezcla_agachado", mezcla_agachado)
+	modificador_pose.set("mezcla_tumbado", mezcla_tumbado)
+	modificador_pose.set("mezcla_linterna", mezcla_linterna)
+	modificador_pose.set("intensidad_gateo", intensidad_gateo)
+	if arrastrandose:
+		modificador_pose.set("fase_gateo", float(modificador_pose.get("fase_gateo")) + delta * vel_horiz * 6.0)
+
 func _log_estado_animacion(delta: float) -> void:
-	if animador_jugador == null:
+	if not DEPURAR_ANIMACION or animador_jugador == null:
 		return
 	_log_anim_timer += delta
 	var actual := String(animador_jugador.current_animation)
@@ -363,10 +412,11 @@ func _actualizar_postura_modelo(delta: float) -> void:
 		return
 	var inclinacion_x := 0.0
 	var desfase_y := 0.0
-	if arrastrandose:
+	# Con la pose real (pose_personaje.gd) el modelo no se inclina entero.
+	if modificador_pose == null and arrastrandose:
 		inclinacion_x = deg_to_rad(-65.0)
 		desfase_y = -0.35 * escala_personaje
-	elif agachado:
+	elif modificador_pose == null and agachado:
 		inclinacion_x = deg_to_rad(-18.0)
 		desfase_y = -0.22 * escala_personaje
 	var rot_objetivo := _rot_base_modelo + Vector3(inclinacion_x, 0.0, 0.0)
@@ -387,13 +437,44 @@ func _conectar_linterna_a_mano() -> void:
 	esqueleto_jugador = _buscar_esqueleto_jugador()
 	if conjunto_linterna == null or camara_jugador == null:
 		return
+	if esqueleto_jugador != null:
+		var pose := PosePersonajeScript.new()
+		pose.name = "PosePersonaje"
+		esqueleto_jugador.add_child(pose)
+		if pose.preparar(esqueleto_jugador, altura_ojos_personaje):
+			pose.camara = camara_jugador
+			pose.cabeza_camara = cabeza
+			pose.conjunto_linterna = conjunto_linterna
+			# La posición y el apuntado de la linterna los fija el script de pose en
+			# cada cuadro (mano derecha). Convención: el conjunto mira hacia -Z.
+			conjunto_linterna.reparent(self)
+			modelo_linterna.transform = Transform3D(Basis(Vector3.RIGHT, -PI / 2.0), Vector3.ZERO)
+			linterna.transform = Transform3D(Basis.IDENTITY, Vector3(0.0, 0.0, -(LARGO_LINTERNA + 0.01)))
+			_quitar_sombra(modelo_linterna)
+			modificador_pose = pose
+			# Sin cabeza visible la cámara puede ir más cerca, y la mano entra en pantalla.
+			_pos_camara_base = Vector3(0.0, 0.0, -0.08)
+			return
+		pose.queue_free()
+	push_warning("No se pudo preparar la mano del personaje; la linterna queda montada a la cámara.")
 	if conjunto_linterna.get_parent() != camara_jugador:
 		conjunto_linterna.reparent(camara_jugador)
 	_pos_base_conjunto = conjunto_linterna.position
 	_rot_base_conjunto = conjunto_linterna.rotation
 
+## La linterna no debe proyectar su propia sombra (taparía la luz del lente).
+func _quitar_sombra(nodo: Node) -> void:
+	if nodo is GeometryInstance3D:
+		(nodo as GeometryInstance3D).cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	for hijo in nodo.get_children():
+		_quitar_sombra(hijo)
+
 func _actualizar_apuntado_linterna(delta: float) -> void:
 	if camara_jugador == null or linterna == null or conjunto_linterna == null:
+		return
+	if modificador_pose != null:
+		# La mano ya sigue a la cámara; solo se converge el haz de luz.
+		_apuntar_haz_linterna(delta)
 		return
 	var vel_horiz := Vector2(velocity.x, velocity.z).length()
 	var corriendo := Input.is_action_pressed("correr") and not agachado and not arrastrandose
@@ -418,6 +499,10 @@ func _actualizar_apuntado_linterna(delta: float) -> void:
 	var q_objetivo := Quaternion.from_euler(rot_objetivo)
 	conjunto_linterna.quaternion = q_actual.slerp(q_objetivo, t)
 
+	_apuntar_haz_linterna(delta)
+
+## El haz converge hacia el punto que mira la cámara, con un pequeño retraso suave.
+func _apuntar_haz_linterna(delta: float) -> void:
 	var punto_mira: Vector3 = camara_jugador.global_position + (-camara_jugador.global_basis.z * distancia_convergencia_luz)
 	if linterna.global_position.distance_squared_to(punto_mira) > 0.0001:
 		var t_look := linterna.global_transform.looking_at(punto_mira, Vector3.UP)
@@ -462,8 +547,11 @@ func _resolver_nombre_animacion(nombre: String) -> String:
 		return ""
 	var objetivo := nombre.to_lower().strip_edges()
 	match objetivo:
-		"crouch_walk", "crawl_forward":
+		"crouch_walk":
 			objetivo = "walk"
+		"crawl_forward":
+			# Arrastrarse: el movimiento de piernas y brazo lo hace pose_personaje.gd.
+			objetivo = "idle" if modificador_pose != null else "walk"
 		"crouch_idle", "crawl_idle":
 			objetivo = "idle"
 	var lista := animador_jugador.get_animation_list()
