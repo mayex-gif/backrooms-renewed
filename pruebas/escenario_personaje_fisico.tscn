@@ -1,6 +1,6 @@
 [gd_scene format=3]
 
-[ext_resource type="PackedScene" path="res://assets/modelos/personaje_casual.glb" id="1"]
+[ext_resource type="PackedScene" uid="uid://x842jsw2j5ww" path="res://assets/modelos/casual/personaje_casual.glb" id="1"]
 
 [sub_resource type="CapsuleShape3D" id="CapsuleShape3D_personaje"]
 radius = 0.28

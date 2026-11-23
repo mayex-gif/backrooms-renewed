@@ -5,6 +5,12 @@ extends PanelContainer
 signal cerrado
 
 func _ready() -> void:
+	_construir_interfaz()
+
+func _construir_interfaz() -> void:
+	for hijo in get_children():
+		hijo.queue_free()
+
 	custom_minimum_size = Vector2(560, 0)
 	var margen := MarginContainer.new()
 	for lado in ["left", "right", "top", "bottom"]:
@@ -61,7 +67,11 @@ func _ready() -> void:
 	cerrar.custom_minimum_size = Vector2(150, 42)
 	cerrar.pressed.connect(cerrar_panel)
 	botones.add_child(cerrar)
-	cerrar.call_deferred("grab_focus")
+	call_deferred("_enfocar_boton", cerrar)
+
+func _enfocar_boton(boton: Button) -> void:
+	if is_inside_tree() and is_instance_valid(boton) and boton.is_inside_tree() and boton.visible:
+		boton.grab_focus()
 
 func cerrar_panel() -> void:
 	Ajustes.guardar()
@@ -69,11 +79,7 @@ func cerrar_panel() -> void:
 
 func _restablecer() -> void:
 	Ajustes.restablecer()
-	# Se reconstruye la pantalla para que los controles muestren los valores nuevos.
-	for hijo in get_children():
-		remove_child(hijo)
-		hijo.queue_free()
-	_ready.call_deferred()
+	_construir_interfaz()
 
 func _seccion(texto: String) -> Control:
 	var etiqueta := Label.new()

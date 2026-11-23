@@ -10,6 +10,9 @@ var _catalogo: Array[SalaDef] = []
 var _instancias: Array[Node3D] = []
 
 func _ready() -> void:
+	var editor_colgado := get_tree().root.get_node_or_null("EditorMapa")
+	if editor_colgado != null:
+		editor_colgado.queue_free()
 	var catalogo_script: Script = load("res://salas/catalogo_salas.gd")
 	_catalogo = catalogo_script.call("crear") as Array[SalaDef]
 	var salas := Node3D.new()

@@ -1,7 +1,8 @@
 [gd_scene format=3 uid="uid://bk5gk5hb3muko"]
 
 [ext_resource type="Script" uid="uid://dpsy6wo1f1wcw" path="res://jugador/jugador.gd" id="1"]
-[ext_resource type="PackedScene" uid="uid://ebx12kpe7f17" path="res://assets/modelos/linterna_tactica.glb" id="2"]
+[ext_resource type="PackedScene" uid="uid://ebx12kpe7f17" path="res://assets/modelos/linterna_tactica/linterna_tactica.glb" id="2"]
+
 [sub_resource type="CapsuleShape3D" id="CapsuleShape3D_player"]
 radius = 0.3
 height = 1.8

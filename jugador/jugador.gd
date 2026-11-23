@@ -6,24 +6,25 @@ extends CharacterBody3D
 @export var velocidad_agachado := 2.0
 @export var velocidad_arrastrarse := 0.8
 @export var velocidad_sigilosa := 1.2
-@export var velocidad_correr_sprint := 6.0
 @export var velocidad_noclip := 12.0
 @export var sensibilidad_mouse := 0.003
 @export var altura_ojos := 1.55
 @export var intervalo_parpadeo_min_s := 18.0
 @export var intervalo_parpadeo_max_s := 40.0
+@export var suavizado_linterna := 14.0
+@export var distancia_convergencia_luz := 15.0
 
 @onready var cabeza: Node3D = $Cabeza
 @onready var colision: CollisionShape3D = $CollisionShape3D
+@onready var modelo_jugador: Node3D = $ModeloJugador
 @onready var conjunto_linterna: Node3D = $Cabeza/Camera3D/ConjuntoLinterna
 @onready var modelo_linterna: Node3D = $Cabeza/Camera3D/ConjuntoLinterna/ModeloLinterna
 @onready var linterna: SpotLight3D = $Cabeza/Camera3D/ConjuntoLinterna/LuzLinterna
 @onready var timer_parpadeo: Timer = $TimerParpadeoLinterna
+
 var animador_jugador: AnimationPlayer
 var camara_jugador: Camera3D
 var esqueleto_jugador: Skeleton3D
-var objetivo_brazo_linterna: Node3D
-var ik_brazo_linterna: SkeletonIK3D
 var materiales_lente: Array[StandardMaterial3D] = []
 var gravedad: float = ProjectSettings.get_setting("physics/3d/default_gravity")
 var agachado := false
@@ -35,6 +36,16 @@ var transiciones_parpadeo_restantes := 0
 var animacion_jugador_actual := ""
 var altura_ojos_personaje := 1.55
 var escala_personaje := 1.0
+var _tiempo_balanceo := 0.0
+var _pos_base_conjunto := Vector3(0.28, -0.22, -0.45)
+var _rot_base_conjunto := Vector3(-PI / 2.0, 0.0, 0.0)
+var _rot_base_modelo := Vector3.ZERO
+var _log_anim_timer := 0.0
+var _ultima_anim_impresa := ""
+
+var _pos_camara_base := Vector3(0.0, 0.0, -0.18)
+var _tiempo_bobbing_camara := 0.0
+
 ## Luz ambiente baja: la iluminación la dan los paneles del techo, no el ambiente.
 const ENERGIA_AMBIENTE := 0.1
 const MenuPausaScript = preload("res://sistema/menu_pausa.gd")
@@ -45,12 +56,19 @@ const ALTURA_CAPSULA_ARRASTRADO := 0.65
 func _ready() -> void:
 	_configurar_controles()
 	_configurar_ambiente()
-	_aplicar_ajustes()
 	camara_jugador = $Cabeza/Camera3D as Camera3D
+	_rot_base_modelo = modelo_jugador.rotation
 	_cargar_modelo_seleccionado()
+	_desactivar_animation_trees()
 	animador_jugador = _buscar_animador_jugador()
+	if animador_jugador != null:
+		animador_jugador.process_mode = Node.PROCESS_MODE_INHERIT
+		animador_jugador.active = true
+		if is_zero_approx(animador_jugador.speed_scale):
+			animador_jugador.speed_scale = 1.0
 	_actualizar_escala_segun_personaje()
 	_conectar_linterna_a_mano()
+	_aplicar_ajustes()
 	timer_parpadeo.timeout.connect(_iniciar_parpadeo_linterna)
 	_preparar_materiales_lente()
 	_actualizar_luz_linterna()
@@ -58,6 +76,15 @@ func _ready() -> void:
 	_actualizar_animacion_jugador("idle")
 	Ajustes.ajustes_cambiados.connect(_aplicar_ajustes)
 	Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
+
+func _desactivar_animation_trees() -> void:
+	var pendientes: Array[Node] = [modelo_jugador]
+	while not pendientes.is_empty():
+		var nodo: Node = pendientes.pop_back()
+		if nodo is AnimationTree:
+			(nodo as AnimationTree).active = false
+		for hijo in nodo.get_children():
+			pendientes.append(hijo)
 
 func _cargar_modelo_seleccionado() -> void:
 	var ruta_modelo := "res://assets/modelos/casual/personaje_casual.glb"
@@ -71,14 +98,49 @@ func _cargar_modelo_seleccionado() -> void:
 	if escena_modelo == null:
 		push_error("Tampoco se pudo cargar el modelo casual de respaldo.")
 		return
+	for hijo in modelo_jugador.get_children():
+		hijo.queue_free()
 	var modelo := escena_modelo.instantiate()
 	modelo.name = "MallaYRig"
-	$ModeloJugador.add_child(modelo)
+	modelo_jugador.add_child(modelo)
 
+func _actualizar_bobbing_camara(delta: float) -> void:
+	if camara_jugador == null:
+		return
+	var vel_horiz := Vector2(velocity.x, velocity.z).length()
+	var en_suelo := is_on_floor() and not modo_noclip
+	var moviendose := en_suelo and vel_horiz > 0.15
+
+	var objetivo_offset := Vector3.ZERO
+	if moviendose:
+		var corriendo := Input.is_action_pressed("correr") and not agachado and not arrastrandose
+		var frecuencia := 13.5 if corriendo else (6.5 if arrastrandose else 9.0)
+		var amp_y := (0.045 if corriendo else (0.015 if arrastrandose else 0.028)) * escala_personaje
+		var amp_x := (0.028 if corriendo else (0.012 if arrastrandose else 0.018)) * escala_personaje
+		_tiempo_bobbing_camara += delta * frecuencia
+		objetivo_offset = Vector3(
+			cos(_tiempo_bobbing_camara * 0.5) * amp_x,
+			absf(sin(_tiempo_bobbing_camara)) * amp_y - amp_y * 0.5,
+			0.0
+		)
+	else:
+		_tiempo_bobbing_camara = move_toward(_tiempo_bobbing_camara, 0.0, delta * 4.0)
+
+	var extra_z := 0.0
+	if cabeza != null and cabeza.rotation.x > 0.0:
+		extra_z = -0.06 * escala_personaje * clampf(cabeza.rotation.x / deg_to_rad(80.0), 0.0, 1.0)
+
+	var destino := _pos_camara_base + objetivo_offset + Vector3(0.0, 0.0, extra_z)
+	var suavizado := clampf(delta * 12.0, 0.0, 1.0)
+	camara_jugador.position = camara_jugador.position.lerp(destino, suavizado)
+	
 func _actualizar_escala_segun_personaje() -> void:
 	var esqueleto := _buscar_esqueleto_jugador()
 	if esqueleto == null:
 		altura_ojos_personaje = altura_ojos
+		_pos_camara_base = Vector3(0.0, 0.03, -0.24)
+		if camara_jugador != null:
+			camara_jugador.position = _pos_camara_base
 		return
 	var ojos: Array[int] = []
 	for nombre_hueso in ["LeftEye", "RightEye", "eye_l", "eye_r", "Eye_L", "Eye_R"]:
@@ -97,29 +159,35 @@ func _actualizar_escala_segun_personaje() -> void:
 			indice_cabeza = esqueleto.find_bone("Head")
 		if indice_cabeza < 0:
 			altura_ojos_personaje = altura_ojos
+			_pos_camara_base = Vector3(0.0, 0.03, -0.24)
+			if camara_jugador != null:
+				camara_jugador.position = _pos_camara_base
 			return
 		var pose_cabeza: Transform3D = esqueleto.global_transform * esqueleto.get_bone_global_rest(indice_cabeza)
 		posicion_ojos_mundo = pose_cabeza.origin + pose_cabeza.basis * Vector3(0.0, 0.11, 0.0)
 	var posicion_ojos_local: Vector3 = to_local(posicion_ojos_mundo)
-	# El pivote de la cabeza queda en el punto medio entre los ojos; el lente
-	# sobresale un poco para que la cara no tape la vista al inclinar la mirada.
-	camara_jugador.position = Vector3(0.0, 0.0, -0.08)
 	cabeza.position = posicion_ojos_local
 	altura_ojos_personaje = clampf(posicion_ojos_local.y, 1.35, 2.1)
 	escala_personaje = clampf(altura_ojos_personaje / maxf(altura_ojos, 0.01), 0.85, 1.3)
+	_pos_camara_base = Vector3(0.0, 0.02 * escala_personaje, -0.24 * escala_personaje)
+	if camara_jugador != null:
+		camara_jugador.position = _pos_camara_base
 	var forma := colision.shape as CapsuleShape3D
-	forma.radius = 0.3 * escala_personaje
-	forma.height = ALTURA_CAPSULA_PARADO * escala_personaje
-	colision.position.y = forma.height * 0.5
+	if forma != null:
+		forma.radius = 0.3 * escala_personaje
+		forma.height = ALTURA_CAPSULA_PARADO * escala_personaje
+		colision.position.y = forma.height * 0.5
 
-func _process(_delta: float) -> void:
-	_actualizar_apuntado_linterna()
+func _process(delta: float) -> void:
+	_actualizar_bobbing_camara(delta)
+	_actualizar_apuntado_linterna(delta)
 
-## Campo de visión elegido por el jugador en Opciones.
+## Campo de visión y sombras elegidos por el jugador en Opciones.
 func _aplicar_ajustes() -> void:
-	var camara := get_node_or_null("Cabeza/Camera3D") as Camera3D
-	if camara != null:
-		camara.fov = Ajustes.campo_vision
+	if camara_jugador != null:
+		camara_jugador.fov = Ajustes.campo_vision
+	if linterna != null and "sombras" in Ajustes:
+		linterna.shadow_enabled = Ajustes.sombras
 
 func _configurar_ambiente() -> void:
 	var world_environment := get_node_or_null("WorldEnvironment") as WorldEnvironment
@@ -135,7 +203,6 @@ func _configurar_ambiente() -> void:
 	ambiente.ssao_enabled = true
 	ambiente.ssao_radius = 1.2
 	ambiente.ssao_intensity = 1.4
-	# Rebote en pantalla: estable, sin horneado y sin recalcular al mover luces.
 	ambiente.ssil_enabled = Ajustes.rebote_pantalla
 	ambiente.ssil_radius = 4.0
 	ambiente.ssil_intensity = 1.0
@@ -145,7 +212,6 @@ func _configurar_ambiente() -> void:
 	ambiente.glow_enabled = true
 	ambiente.glow_intensity = 0.35
 	ambiente.glow_strength = 0.45
-	# Niebla leve y oscura: da profundidad a los pasillos largos sin esconder las salas.
 	ambiente.fog_enabled = true
 	ambiente.fog_light_color = Color(0.1, 0.095, 0.075)
 	ambiente.fog_density = 0.008
@@ -154,7 +220,17 @@ func _configurar_ambiente() -> void:
 	world_environment.set_meta("energia_ambiente_base", ENERGIA_AMBIENTE)
 
 func _configurar_controles() -> void:
-	var teclas := {"adelante": [KEY_W, KEY_UP], "atras": [KEY_S, KEY_DOWN], "izquierda": [KEY_A, KEY_LEFT], "derecha": [KEY_D, KEY_RIGHT], "correr": [KEY_CTRL], "caminar_sigiloso": [KEY_SHIFT], "agachar": [KEY_C], "arrastrarse": [KEY_Z], "linterna": [KEY_F]}
+	var teclas := {
+		"adelante": [KEY_W, KEY_UP],
+		"atras": [KEY_S, KEY_DOWN],
+		"izquierda": [KEY_A, KEY_LEFT],
+		"derecha": [KEY_D, KEY_RIGHT],
+		"correr": [KEY_CTRL],
+		"caminar_sigiloso": [KEY_SHIFT],
+		"agachar": [KEY_C],
+		"arrastrarse": [KEY_Z],
+		"linterna": [KEY_F]
+	}
 	if OS.is_debug_build():
 		teclas["alternar_noclip"] = [KEY_F3]
 		teclas["noclip_subir"] = [KEY_E]
@@ -209,12 +285,15 @@ func _physics_process(delta: float) -> void:
 			movimiento_libre = movimiento_libre.normalized()
 		global_position += movimiento_libre * velocidad_noclip * delta
 		velocity = Vector3.ZERO
+		_actualizar_postura_modelo(delta)
 		_actualizar_animacion_jugador("idle")
+		_log_estado_animacion(delta)
 		return
 	if Input.is_action_just_pressed("agachar"):
 		if arrastrandose:
-			arrastrandose = false
-			agachado = true
+			if _hay_espacio_para_pararse():
+				arrastrandose = false
+				agachado = true
 		elif agachado:
 			if _hay_espacio_para_pararse():
 				agachado = false
@@ -229,31 +308,73 @@ func _physics_process(delta: float) -> void:
 			arrastrandose = true
 			agachado = false
 	var shape := colision.shape as CapsuleShape3D
-	var alto := ALTURA_CAPSULA_ARRASTRADO * escala_personaje if arrastrandose else ALTURA_CAPSULA_AGACHADO * escala_personaje if agachado else ALTURA_CAPSULA_PARADO * escala_personaje
-	shape.height = move_toward(shape.height, alto, 4.0 * delta)
-	colision.position.y = shape.height * 0.5
-	var altura_cabeza := 0.48 * escala_personaje if arrastrandose else 1.0 * escala_personaje if agachado else altura_ojos_personaje
+	if shape != null:
+		var alto := ALTURA_CAPSULA_ARRASTRADO * escala_personaje if arrastrandose else ALTURA_CAPSULA_AGACHADO * escala_personaje if agachado else ALTURA_CAPSULA_PARADO * escala_personaje
+		shape.height = move_toward(shape.height, alto, 4.0 * delta)
+		colision.position.y = shape.height * 0.5
+	var altura_cabeza := 0.30 * escala_personaje if arrastrandose else 0.95 * escala_personaje if agachado else altura_ojos_personaje
 	cabeza.position.y = move_toward(cabeza.position.y, altura_cabeza, 4.0 * delta)
 	if not is_on_floor():
 		velocity.y -= gravedad * delta
 	var entrada := Input.get_vector("izquierda", "derecha", "adelante", "atras")
-	var velocidad := velocidad_arrastrarse if arrastrandose else velocidad_agachado if agachado else velocidad_sigilosa if Input.is_action_pressed("caminar_sigiloso") else velocidad_correr_sprint if Input.is_action_pressed("correr") else velocidad_caminar
+	var tiene_input := entrada.length_squared() > 0.01
+	var corriendo := Input.is_action_pressed("correr") and not agachado and not arrastrandose
+	var velocidad := velocidad_arrastrarse if arrastrandose else velocidad_agachado if agachado else velocidad_sigilosa if Input.is_action_pressed("caminar_sigiloso") else velocidad_correr if corriendo else velocidad_caminar
 	var direccion := (transform.basis * Vector3(entrada.x, 0, entrada.y)).normalized()
 	velocity.x = direccion.x * velocidad if direccion else move_toward(velocity.x, 0.0, velocidad * 8.0 * delta)
 	velocity.z = direccion.z * velocidad if direccion else move_toward(velocity.z, 0.0, velocidad * 8.0 * delta)
 	move_and_slide()
-	var moviendose := entrada.length_squared() > 0.01 and Vector2(velocity.x, velocity.z).length_squared() > 0.01
+	_actualizar_postura_modelo(delta)
+	var vel_horiz := Vector2(velocity.x, velocity.z).length()
+	var moviendose := tiene_input or vel_horiz > 0.15
 	var animacion := "idle"
 	if arrastrandose:
 		animacion = "crawl_idle" if not moviendose else "crawl_forward"
 	elif agachado:
 		animacion = "crouch_idle" if not moviendose else "crouch_walk"
 	elif moviendose:
-		animacion = "run" if Input.is_action_pressed("correr") else "walk"
+		animacion = "run" if corriendo else "walk"
 	_actualizar_animacion_jugador(animacion)
+	_log_estado_animacion(delta)
+
+func _log_estado_animacion(delta: float) -> void:
+	if animador_jugador == null:
+		return
+	_log_anim_timer += delta
+	var actual := String(animador_jugador.current_animation)
+	if actual != _ultima_anim_impresa or _log_anim_timer >= 0.5:
+		_log_anim_timer = 0.0
+		_ultima_anim_impresa = actual
+		var pos := animador_jugador.current_animation_position if not actual.is_empty() else 0.0
+		var largo := animador_jugador.current_animation_length if not actual.is_empty() else 0.0
+		print(
+			"[Anim] clip='%s' | pos=%.2f / %.2f | playing=%s | active=%s | vel=%.2f" % [
+				actual,
+				pos,
+				largo,
+				str(animador_jugador.is_playing()),
+				str(animador_jugador.active),
+				Vector2(velocity.x, velocity.z).length()
+			]
+		)
+
+func _actualizar_postura_modelo(delta: float) -> void:
+	if modelo_jugador == null:
+		return
+	var inclinacion_x := 0.0
+	var desfase_y := 0.0
+	if arrastrandose:
+		inclinacion_x = deg_to_rad(-65.0)
+		desfase_y = -0.35 * escala_personaje
+	elif agachado:
+		inclinacion_x = deg_to_rad(-18.0)
+		desfase_y = -0.22 * escala_personaje
+	var rot_objetivo := _rot_base_modelo + Vector3(inclinacion_x, 0.0, 0.0)
+	modelo_jugador.rotation.x = lerp_angle(modelo_jugador.rotation.x, rot_objetivo.x, clampf(delta * 10.0, 0.0, 1.0))
+	modelo_jugador.position.y = lerpf(modelo_jugador.position.y, desfase_y, clampf(delta * 10.0, 0.0, 1.0))
 
 func _buscar_animador_jugador() -> AnimationPlayer:
-	var pendientes: Array[Node] = [$ModeloJugador]
+	var pendientes: Array[Node] = [modelo_jugador]
 	while not pendientes.is_empty():
 		var nodo: Node = pendientes.pop_back()
 		if nodo is AnimationPlayer:
@@ -263,70 +384,47 @@ func _buscar_animador_jugador() -> AnimationPlayer:
 	return null
 
 func _conectar_linterna_a_mano() -> void:
-	var esqueleto := _buscar_esqueleto_jugador()
-	if esqueleto == null:
-		push_warning("No se encontró el esqueleto del jugador; la linterna queda montada a la cámara.")
+	esqueleto_jugador = _buscar_esqueleto_jugador()
+	if conjunto_linterna == null or camara_jugador == null:
 		return
-	var hueso_sujecion := "WeaponR" if esqueleto.find_bone("WeaponR") >= 0 else "hand_r"
-	if esqueleto.find_bone(hueso_sujecion) < 0:
-		push_warning("No se encontró un punto de anclaje en la mano derecha; la linterna queda montada a la cámara.")
+	if conjunto_linterna.get_parent() != camara_jugador:
+		conjunto_linterna.reparent(camara_jugador)
+	_pos_base_conjunto = conjunto_linterna.position
+	_rot_base_conjunto = conjunto_linterna.rotation
+
+func _actualizar_apuntado_linterna(delta: float) -> void:
+	if camara_jugador == null or linterna == null or conjunto_linterna == null:
 		return
-	var sujecion := BoneAttachment3D.new()
-	sujecion.name = "SujecionLinterna"
-	sujecion.bone_name = hueso_sujecion
-	esqueleto.add_child(sujecion)
-	esqueleto_jugador = esqueleto
-	conjunto_linterna.reparent(sujecion)
-	# En el GLB la linterna apunta por su eje +Y; este giro orienta el lente
-	# hacia el frente (-Z) y conserva la luz junto al modelo en la mano derecha.
-	conjunto_linterna.transform = Transform3D(Basis.from_euler(Vector3(-PI / 2.0, 0.0, 0.0)), Vector3(0.0, -0.07, 0.035))
-	_configurar_ik_brazo(esqueleto)
+	var vel_horiz := Vector2(velocity.x, velocity.z).length()
+	var corriendo := Input.is_action_pressed("correr") and not agachado and not arrastrandose
+	var ritmo := (5.5 + vel_horiz * 1.5) if (vel_horiz > 0.15 and is_on_floor()) else 1.5
+	var amplitud := (0.012 if corriendo else 0.007) if (vel_horiz > 0.15 and is_on_floor()) else 0.0025
+	_tiempo_balanceo += delta * ritmo
 
-func _configurar_ik_brazo(esqueleto: Skeleton3D) -> void:
-	if is_instance_valid(objetivo_brazo_linterna):
-		objetivo_brazo_linterna.queue_free()
-	if is_instance_valid(ik_brazo_linterna):
-		ik_brazo_linterna.queue_free()
-	
-	print("Esqueleto usado en IK: ", esqueleto.get_path(), " | rightArm idx: ", esqueleto.find_bone("RightArm"), " | rightHand idx: ", esqueleto.find_bone("RightHand"))
-	var hueso_raiz := "upperarm_r" if esqueleto.find_bone("upperarm_r") >= 0 else "RightArm"
-	var hueso_mano := "hand_r" if esqueleto.find_bone("hand_r") >= 0 else "RightHand"
-	var idx_raiz := esqueleto.find_bone(hueso_raiz)
-	var idx_mano := esqueleto.find_bone(hueso_mano)
+	var offset_balanceo := Vector3(
+		cos(_tiempo_balanceo * 0.5) * amplitud * 0.8,
+		sin(_tiempo_balanceo) * amplitud,
+		0.0
+	)
+	var t := clampf(delta * suavizado_linterna, 0.0, 1.0)
+	conjunto_linterna.position = conjunto_linterna.position.lerp(_pos_base_conjunto + offset_balanceo, t)
 
-	if idx_raiz < 0 or idx_mano < 0:
-		push_warning("El esqueleto no tiene los huesos necesarios (%s / %s) para apuntar el brazo." % [hueso_raiz, hueso_mano])
-		return
+	var rot_objetivo := _rot_base_conjunto + Vector3(
+		sin(_tiempo_balanceo) * amplitud * 1.8,
+		cos(_tiempo_balanceo * 0.5) * amplitud * 1.4,
+		0.0
+	)
+	var q_actual := conjunto_linterna.quaternion
+	var q_objetivo := Quaternion.from_euler(rot_objetivo)
+	conjunto_linterna.quaternion = q_actual.slerp(q_objetivo, t)
 
-	objetivo_brazo_linterna = Node3D.new()
-	objetivo_brazo_linterna.name = "ObjetivoBrazoLinterna"
-	esqueleto.add_child(objetivo_brazo_linterna)
-	objetivo_brazo_linterna.global_position = esqueleto.to_global(esqueleto.get_bone_global_pose(idx_mano).origin)
-
-	ik_brazo_linterna = SkeletonIK3D.new()
-	ik_brazo_linterna.name = "IKBrazoLinterna"
-	esqueleto.add_child(ik_brazo_linterna)
-	ik_brazo_linterna.root_bone = hueso_raiz
-	ik_brazo_linterna.tip_bone = hueso_mano
-	ik_brazo_linterna.target_node = ik_brazo_linterna.get_path_to(objetivo_brazo_linterna)
-	ik_brazo_linterna.max_iterations = 12
-	ik_brazo_linterna.min_distance = 0.01
-	ik_brazo_linterna.process_priority = 100
-	# ik_brazo_linterna.start()
-
-func _actualizar_apuntado_linterna() -> void:
-	if camara_jugador == null:
-		return
-	if objetivo_brazo_linterna != null:
-		# Mantiene el codo extendido hacia delante y la mano debajo del eje visual.
-		objetivo_brazo_linterna.global_position = camara_jugador.global_position + (-camara_jugador.global_basis.z * 0.72) + (camara_jugador.global_basis.x * 0.22) - (camara_jugador.global_basis.y * 0.28)
-	# La mano aporta la posición; la orientación de la linterna sigue el eje de la cámara.
-	var base_modelo: Basis = camara_jugador.global_basis * Basis.from_euler(Vector3(-PI / 2.0, 0.0, 0.0))
-	conjunto_linterna.global_basis = base_modelo.orthonormalized()
-	linterna.global_basis = camara_jugador.global_basis.orthonormalized()
+	var punto_mira: Vector3 = camara_jugador.global_position + (-camara_jugador.global_basis.z * distancia_convergencia_luz)
+	if linterna.global_position.distance_squared_to(punto_mira) > 0.0001:
+		var t_look := linterna.global_transform.looking_at(punto_mira, Vector3.UP)
+		linterna.global_basis = linterna.global_basis.orthonormalized().slerp(t_look.basis.orthonormalized(), clampf(delta * (suavizado_linterna * 1.5), 0.0, 1.0))
 
 func _buscar_esqueleto_jugador() -> Skeleton3D:
-	var pendientes: Array[Node] = [$ModeloJugador]
+	var pendientes: Array[Node] = [modelo_jugador]
 	while not pendientes.is_empty():
 		var nodo: Node = pendientes.pop_back()
 		if nodo is Skeleton3D:
@@ -336,52 +434,56 @@ func _buscar_esqueleto_jugador() -> Skeleton3D:
 	return null
 
 func _actualizar_animacion_jugador(nombre: String) -> void:
-	if animador_jugador == null:
+	if animador_jugador == null or not animador_jugador.is_inside_tree():
+		print("[AnimDebug] animador nulo o fuera del árbol para '%s'" % nombre)
 		return
 	var nombre_animacion := _resolver_nombre_animacion(nombre)
-	if nombre_animacion.is_empty() and nombre.begins_with("crawl_"):
-		nombre_animacion = _resolver_nombre_animacion("idle" if nombre.ends_with("idle") else "walk")
-	if nombre_animacion.is_empty() and nombre.begins_with("crouch_"):
-		nombre_animacion = _resolver_nombre_animacion("walk" if nombre.ends_with("walk") else "idle")
 	if nombre_animacion.is_empty():
-		nombre_animacion = _resolver_nombre_animacion("idle")
-	if nombre_animacion.is_empty() or nombre_animacion == animacion_jugador_actual:
+		print("[AnimDebug] sin resolver para '%s' (lista: %s)" % [nombre, str(animador_jugador.get_animation_list())])
 		return
-	animacion_jugador_actual = nombre_animacion
 	var clip := animador_jugador.get_animation(nombre_animacion)
 	if clip != null:
 		clip.loop_mode = Animation.LOOP_LINEAR
-	animador_jugador.play(nombre_animacion, 0.18)
+	animador_jugador.active = true
+	if nombre_animacion != animacion_jugador_actual or animador_jugador.current_animation != nombre_animacion or not animador_jugador.is_playing():
+		animador_jugador.play(nombre_animacion)
+		animacion_jugador_actual = nombre_animacion
+		if animador_jugador.current_animation.is_empty():
+			print("[AnimFail] pedí='%s' -> elegido='%s' | has=%s | playing=%s | id=%s" % [
+				nombre,
+				nombre_animacion,
+				str(animador_jugador.has_animation(nombre_animacion)),
+				str(animador_jugador.is_playing()),
+				str(animador_jugador.get_instance_id())
+			])
 
 func _resolver_nombre_animacion(nombre: String) -> String:
-	var normalizado_buscado := _normalizar_nombre_animacion(nombre)
-	var candidatos: Array[String] = [normalizado_buscado]
-	match normalizado_buscado:
-		"crouch_walk":
-			candidatos.append_array(["walk_crouched_forwards", "crouch_walk_aiming"])
-		"crawl_forward":
-			candidatos.append_array(["move_crawl", "move_crawl_female"])
-		"crawl_idle":
-			candidatos.append_array(["idle_lying", "idle_lying_female"])
-	for candidato in candidatos:
-		if animador_jugador.has_animation(candidato):
-			return candidato
-		var biblioteca_default: String = "default_library/" + candidato
-		if animador_jugador.has_animation(biblioteca_default):
-			return biblioteca_default
-	for disponible in animador_jugador.get_animation_list():
-		var final_nombre := _normalizar_nombre_animacion(String(disponible).get_slice("/", -1))
-		if candidatos.has(final_nombre):
-			return disponible
-	return ""
+	if animador_jugador == null:
+		return ""
+	var objetivo := nombre.to_lower().strip_edges()
+	match objetivo:
+		"crouch_walk", "crawl_forward":
+			objetivo = "walk"
+		"crouch_idle", "crawl_idle":
+			objetivo = "idle"
+	var lista := animador_jugador.get_animation_list()
+	for anim in lista:
+		var s := String(anim)
+		if s.to_lower() == objetivo or s.get_slice("/", -1).to_lower() == objetivo:
+			return s
+	for anim in lista:
+		var s := String(anim)
+		if s.to_lower() == "idle" or s.get_slice("/", -1).to_lower() == "idle":
+			return s
+	return String(lista[0]) if not lista.is_empty() else ""
 
 func _normalizar_nombre_animacion(nombre: String) -> String:
-	var normalizado := nombre.to_lower().strip_edges()
-	for separador in [" ", "-", "–", "—"]:
-		normalizado = normalizado.replace(separador, "_")
-	while normalizado.contains("__"):
-		normalizado = normalizado.replace("__", "_")
-	return normalizado.trim_prefix("_").trim_suffix("_")
+	var limpio := nombre.to_lower().strip_edges()
+	for sep in [" ", "-", "–", "—", "|"]:
+		limpio = limpio.replace(sep, "_")
+	while limpio.contains("__"):
+		limpio = limpio.replace("__", "_")
+	return limpio.trim_prefix("_").trim_suffix("_")
 
 func _programar_parpadeo_linterna() -> void:
 	var espera_minima := maxf(1.0, minf(intervalo_parpadeo_min_s, intervalo_parpadeo_max_s))

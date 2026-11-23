@@ -3,7 +3,7 @@ extends CanvasLayer
 ## Se abre con Escape durante el juego y se cierra con Escape.
 
 const PanelAjustesScript = preload("res://sistema/panel_ajustes.gd")
-const MENU_PRINCIPAL := "res://pruebas/menu_principal.tscn"
+const MENU_PRINCIPAL := "res://escenas/menu_principal.tscn"
 
 var _contenedor: CenterContainer
 var _principal: PanelContainer
@@ -43,13 +43,13 @@ func _crear_principal() -> void:
 	titulo.add_theme_color_override("font_color", Color(0.86, 0.82, 0.62))
 	columna.add_child(titulo)
 	columna.add_child(HSeparator.new())
-	var continuar := _boton(columna, "Continuar", _continuar)
+	_boton(columna, "Continuar", _continuar)
 	_boton(columna, "Opciones", _abrir_opciones)
 	if OS.is_debug_build() and get_node_or_null("/root/PanelDesarrollo") != null:
 		_boton(columna, "Ajustes de desarrollo", _abrir_desarrollo)
 	_boton(columna, "Volver al menú principal", _volver_al_menu)
 	_boton(columna, "Salir del juego", func() -> void: get_tree().quit())
-	continuar.call_deferred("grab_focus")
+	call_deferred("_enfocar_continuar")
 
 func _boton(padre: Container, texto: String, accion: Callable) -> Button:
 	var boton := Button.new()
@@ -87,6 +87,7 @@ func _cerrar_opciones() -> void:
 		_opciones.queue_free()
 		_opciones = null
 	_principal.show()
+	call_deferred("_enfocar_continuar")
 
 func _abrir_desarrollo() -> void:
 	var panel := get_node_or_null("/root/PanelDesarrollo")
@@ -97,3 +98,21 @@ func _abrir_desarrollo() -> void:
 func _volver_al_menu() -> void:
 	get_tree().change_scene_to_file(MENU_PRINCIPAL)
 	queue_free()
+
+func _enfocar_continuar() -> void:
+	if not is_inside_tree() or not is_instance_valid(_principal) or not _principal.visible:
+		return
+	for hijo in _principal.get_children():
+		var boton := _buscar_boton(hijo)
+		if boton != null and boton.is_inside_tree() and boton.visible:
+			boton.grab_focus()
+			return
+
+func _buscar_boton(nodo: Node) -> Button:
+	if nodo is Button:
+		return nodo as Button
+	for hijo in nodo.get_children():
+		var hallado := _buscar_boton(hijo)
+		if hallado != null:
+			return hallado
+	return null
