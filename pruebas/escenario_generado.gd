@@ -7,6 +7,7 @@ extends Node3D
 @export_range(4, 64, 1) var salas_por_extension := 12
 @export_range(4.0, 30.0, 1.0) var distancia_extension := 6.0
 @export var imprimir_huella_completa := false
+const MaterialesAmbiente = preload("res://salas/materiales_ambiente.gd")
 var multiplicador_grandes := 1.0
 var multiplicador_abiertas := 1.0
 @onready var contenedor: Node3D = $Salas
@@ -224,6 +225,7 @@ func _agregar_panel_superior(sala: Node3D, socket: SocketDef, alto_bajo: float, 
 	var malla := BoxMesh.new()
 	malla.size = forma.size
 	visual.mesh = malla
+	MaterialesAmbiente.aplicar(visual, MaterialesAmbiente.PARED)
 	cuerpo.add_child(visual)
 	sala.add_child(cuerpo)
 
@@ -241,6 +243,7 @@ func _agregar_cierre_superior_completo(sala: Node3D, socket: SocketDef, definici
 	visual.position = Vector3.ZERO
 	malla.size = caja.size
 	visual.mesh = malla
+	MaterialesAmbiente.aplicar(visual, MaterialesAmbiente.PARED)
 	var colision := CollisionShape3D.new()
 	colision.shape = caja
 	cuerpo.add_child(colision)

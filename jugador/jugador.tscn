@@ -2,8 +2,6 @@
 
 [ext_resource type="Script" uid="uid://dpsy6wo1f1wcw" path="res://jugador/jugador.gd" id="1"]
 [ext_resource type="PackedScene" uid="uid://ebx12kpe7f17" path="res://assets/modelos/linterna_tactica.glb" id="2"]
-[ext_resource type="PackedScene" uid="uid://x842jsw2j5ww" path="res://assets/modelos/personaje_casual.glb" id="3"]
-
 [sub_resource type="CapsuleShape3D" id="CapsuleShape3D_player"]
 radius = 0.3
 height = 1.8
@@ -31,14 +29,14 @@ script = ExtResource("1")
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.9, 0)
 shape = SubResource("CapsuleShape3D_player")
 
-[node name="ModeloJugador" parent="." unique_id=1202809288 instance=ExtResource("3")]
+[node name="ModeloJugador" type="Node3D" parent="." unique_id=1202809288]
 transform = Transform3D(-1, 0, -3.2584137e-07, 0, 1, 0, 3.2584137e-07, 0, -1, 0, 0, 0)
 
 [node name="Cabeza" type="Node3D" parent="." unique_id=1056658899]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.55, 0)
 
 [node name="Camera3D" type="Camera3D" parent="Cabeza" unique_id=1988907236]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.050113916, -0.12256932)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -0.08)
 current = true
 
 [node name="ConjuntoLinterna" type="Node3D" parent="Cabeza/Camera3D" unique_id=971785272]

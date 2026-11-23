@@ -19,6 +19,7 @@ config/icon="res://icon.svg"
 
 Ajustes="*res://sistema/ajustes.gd"
 PanelDesarrollo="*res://pruebas/panel_desarrollo.gd"
+SelectorPersonaje="*res://sistema/selector_personaje.gd"
 
 [display]
 

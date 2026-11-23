@@ -1,6 +1,8 @@
 extends Node3D
 ## Nivel de recorrido diseñado a mano. Las conexiones y sus coordenadas son fijas.
 
+const MaterialesAmbiente = preload("res://salas/materiales_ambiente.gd")
+
 const PLAN: Array[Dictionary] = [
 	{"id": "vestibulo", "tipo": "Gran vestíbulo 20x15 seis salidas", "origen": Vector3(0, 0, 0), "sockets": [
 		{"indice": 0, "ancho": 5.0}, {"indice": 2, "ancho": 5.0},
@@ -342,5 +344,6 @@ func _cerrar_sobrepuerta(sala: Node3D, socket: SocketDef, altura_baja: float, al
 	var malla := BoxMesh.new()
 	malla.size = caja.size
 	visual.mesh = malla
+	MaterialesAmbiente.aplicar(visual, MaterialesAmbiente.PARED)
 	cuerpo.add_child(visual)
 	sala.add_child(cuerpo)

@@ -9,6 +9,8 @@ extends Node3D
 @export_range(0.05, 1.0, 0.05) var profundidad: float = 0.2
 @export var sellado := false
 
+const MaterialesAmbiente = preload("res://salas/materiales_ambiente.gd")
+
 func _ready() -> void:
 	if ancho_hueco <= 0.0 or ancho_pasaje <= 0.0 or ancho_pasaje > ancho_hueco:
 		push_error("RellenoSocket requiere 0 < ancho_pasaje <= ancho_hueco.")
@@ -36,5 +38,6 @@ func _crear_bloque(x: float, ancho: float, alto_bloque: float) -> void:
 	malla.size = forma.size
 	var visual := MeshInstance3D.new()
 	visual.mesh = malla
+	MaterialesAmbiente.aplicar(visual, MaterialesAmbiente.PARED)
 	cuerpo.add_child(visual)
 	add_child(cuerpo)

@@ -140,13 +140,16 @@ Las salas modulares usan placas de 1,5 m. La retícula se centra respecto de los
 límites de la huella para repartir por igual los recortes perimetrales; las
 barras y los paneles usan ese mismo origen. La vista de techo del editor
 reproduce la misma retícula para que las celdas clicables correspondan con las
-placas generadas en 3D. En posiciones normales, las caras
-inferiores visibles de placas, luminarias y retícula coinciden a la misma altura
-respecto del piso. Las
+placas generadas en 3D. En posiciones normales, la cara inferior del
+cielorraso queda a ras de la coronación de las paredes; placas, luminarias y
+retícula comparten ese plano. Las
 luminarias ocupan casi el tile completo y parten de una distribución cada tres
 tiles; hay placas ausentes, desplazadas, quemadas o intermitentes. La sala
 circular usa la retícula común recortada por su huella. La
-geometría volvió a materiales por defecto, sin tintes ni texturas.
+Las paredes usan un acabado mostaza liso y las placas del cielorraso un acabado
+mate claro, sin mapas que repitan patrones finos. Las juntas las define la
+geometría de cada panel; el plenum conserva un acabado oscuro y los pisos usan
+una base mate neutra.
 
 En salas modulares y circulares, las placas y luminarias restan 8 cm al lado
 del módulo de 1,5 m (4 cm por lado); así queda una junta de 5 mm con las barras
@@ -160,8 +163,14 @@ poligonal común.
 Los pisos y las placas del techo se construyen como prismas cerrados: incluyen
 caras superiores, inferiores y laterales. El orden de vértices debe dejar cada
 cara visible desde su lado exterior con el descarte de caras de Godot. Las
-placas ausentes siguen siendo huecos intencionales del cielorraso, cubiertos
-por el plenum superior.
+placas ausentes siguen siendo huecos intencionales del cielorraso. La cámara
+técnica queda a 1,9 m sobre la cara superior de las placas y termina en una tapa
+oscura; contiene tendidos de agua, gas, electricidad y ventilación, recortados a
+la huella de cada sala. Las instalaciones se ven por huecos y placas desplazadas.
+Los faldones perimetrales sellan el exterior, pero dejan pasos sobre sockets que
+conectan salas para que la cámara pueda continuar entre ellas. El paso todavía
+no es transitable desde la partida: faltan rutas con piso y un acceso desde
+escaleras/conectores del mapa vertical.
 
 Cada foco se centra en su placa y proyecta una mancha cuadrada, calculada para
 alcanzar las esquinas del piso según la altura real. El semilado, el borde y la
@@ -185,6 +194,8 @@ solo crea luminarias en las placas modificadas manualmente; las demás placas
 quedan normales y se evita sumar luces de patrón a la selección del usuario.
 El ajuste y las selecciones manuales se guardan por mapa. SSR sigue apagado
 porque las superficies actuales son mates y no deberían reflejar el entorno.
+La vista de techo no redibuja el lienzo cuando se mueve el cursor: el cursor no
+cambia sus elementos, y cada redibujado recalcula huellas, conexiones y placas.
 Los focos se conservan hasta 50 m de la cámara y las sombras empiezan a
 desvanecerse a 50 m. El usuario revisó y aprobó visualmente la configuración
 actual.
@@ -208,12 +219,17 @@ recorrido visual.
 Los dinteles tienen una abertura de 2,45 m; se quitaron los marcos extra para
 evitar z-fighting.
 
-El plenum se acerca a las placas para ocultar el exterior a través de huecos
-accidentales. Queda registrada la futura construcción de cañerías visibles y
-una zona superior explorable, con acceso y colisiones planeados.
+El plenum ya reserva 1,9 m sobre el cielorraso y muestra cañerías y ductos por
+placas ausentes o desplazadas. La geometría se construye también en salas
+circular y poligonales, y se abre sobre sockets conectados. Falta añadir rutas
+de mantenimiento con piso/colisiones y unirlas a escaleras o conectores para
+hacerlas transitables. Al integrar niveles, hay que resolver este espacio dentro
+del intervalo estructural de 5 m sin confundir altura libre de sala con altura
+entre pisos.
 
-Los materiales siguen siendo provisionales. El relieve, la textura de papel,
-la alfombra, los reflejos y el balance de luz necesitan una pasada visual.
+Los materiales siguen siendo provisionales. El tinte mostaza y el balance de
+luz necesitan una pasada visual. El catálogo actual no contiene ventanas; el
+material de vidrio está preparado para cuando se agreguen esas superficies.
 
 ## Semillas y pausa de carga conocida
 
@@ -233,6 +249,25 @@ prioriza el modo de plano fijo para jugar.
 
 - El plano principal aún no conecta pisos verticales. La rampa/escalera y el
   abismo existen como escenas de prototipo independientes.
+- Los mapas guardados y el editor todavía colocan todas las salas a la misma
+  cota. El diseño acordado usa pisos a intervalos fijos de 5 m, con niveles
+  indexados arriba y abajo del nivel inicial. Las formas del catálogo se
+  normalizarán a tres alturas comunes: 5, 10 y 15 m, para que cada silueta
+  espacial tenga variantes común, media y alta. El pasaje bajo de 1,35 m se
+  conserva como pieza funcional especial. Una sala puede abarcar varios
+  intervalos. Al coincidir el piso de una sala con
+  el techo de otra, la geometría debe resolver una sola superficie compartida,
+  con la cara de piso arriba y la de techo abajo; no dos placas coincidentes.
+  El cielorraso modular quedará por debajo de la losa estructural para reservar
+  una cámara técnica. Su espesor útil y los pasadizos transitables aún deben
+  diseñarse junto con las alturas libres, especialmente en salas de 5 m y en
+  salas altas que abarcan varios niveles.
+  Las caídas y los conectores verticales requieren recortar las superficies por
+  la huella de sus huecos. La escalera prototipo (`escenario_multinivel.gd`)
+  todavía separa sus plantas 6 m y necesita ajustarse al paso elegido de 5 m.
+  Las conexiones de muro actuales solo vinculan salas coplanares; rampas/túneles
+  inclinados y escaleras deberán conectar niveles explícitamente y poder recorrer
+  varios intervalos.
 - La selección de sockets del plano es manual; hay que revisar en Godot sus
   uniones, especialmente la puerta hacia el pasaje bajo y el cierre sobre ella.
 - El no-clip F3 solo se añade en compilaciones de desarrollo. WASD y el mouse

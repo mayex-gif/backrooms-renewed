@@ -9,10 +9,13 @@ extends Node3D
 @export var semilla_ambiente := 1
 
 const LuminariaScript = preload("res://salas/luminaria.gd")
+const MaterialesAmbiente = preload("res://salas/materiales_ambiente.gd")
+const ServiciosTecho = preload("res://salas/servicios_techo.gd")
 const GROSOR_PLACA_TECHO := 0.12
 const GROSOR_VIGA_TECHO := 0.06
 const DESFASE_PLACA_TECHO := LuminariaScript.DESFASE_PLACA_TECHO
-const INCLINACION_PLACA_SUELTA := 3.0
+const INCLINACION_PLACA_SUELTA := 1.0
+const ALTURA_CAMARA_TECNICA := 1.9
 
 func _ready() -> void:
 	_crear_cilindro("Piso", 0.2, -0.1)
@@ -37,6 +40,7 @@ func _ready() -> void:
 		var malla := BoxMesh.new()
 		malla.size = forma.size
 		visual.mesh = malla
+		MaterialesAmbiente.aplicar(visual, MaterialesAmbiente.PARED)
 		cuerpo.add_child(visual)
 		add_child(cuerpo)
 	for socket in sockets:
@@ -56,14 +60,17 @@ func _ready() -> void:
 		var box_dintel := BoxMesh.new()
 		box_dintel.size = forma_dintel.size
 		malla_dintel.mesh = box_dintel
+		MaterialesAmbiente.aplicar(malla_dintel, MaterialesAmbiente.PARED)
 		dintel.add_child(malla_dintel)
 		add_child(dintel)
+	_crear_faldon_plenum()
 
 func _crear_techo_modular() -> void:
 	var rng := RandomNumberGenerator.new()
 	rng.seed = semilla_ambiente
-	# El plenum oscuro tapa el exterior visible a través de huecos del cielorraso.
-	_crear_cilindro("Plenum circular", 0.2, alto_m + 0.02)
+	# La tapa superior deja espacio para las instalaciones sobre las placas.
+	_crear_cilindro("Plenum circular", 0.2, alto_m + ALTURA_CAMARA_TECNICA + 0.1)
+	ServiciosTecho.crear(self, GeometriaHuella.circulo(radio_m, 48), alto_m)
 	var tam_tile := 1.5
 	var cantidad := ceili((radio_m * 2.0) / tam_tile)
 	var origen_grilla := (radio_m * 2.0 - cantidad * tam_tile) * 0.5
@@ -102,10 +109,21 @@ func _crear_techo_modular() -> void:
 			else:
 				tile = _crear_tile(posicion + Vector3.UP * DESFASE_PLACA_TECHO, tam_tile - LuminariaScript.MARGEN_PLACA_RETICULA)
 				if valor > 0.93:
-					tile.position.y += rng.randf_range(0.04, 0.12)
+					tile.position.y += rng.randf_range(0.015, 0.03)
 					tile.rotation_degrees.z = rng.randf_range(-INCLINACION_PLACA_SUELTA, INCLINACION_PLACA_SUELTA)
 
 	LuminariaScript.crear_relleno(self, Vector2(radio_m, radio_m), radio_m * 1.2, alto_m, luces_operativas)
+
+func _crear_faldon_plenum() -> void:
+	var segmentos := 48
+	var paso := TAU / segmentos
+	for i in segmentos:
+		var angulo := (i + 0.5) * paso
+		if _es_hueco_de_puerta(angulo, paso):
+			continue
+		var centro := Vector3(radio_m + sin(angulo) * radio_m, alto_m + ALTURA_CAMARA_TECNICA * 0.5, radio_m - cos(angulo) * radio_m)
+		var faldon := _crear_caja("FaldonPlenum", Vector3(radio_m * paso * 1.03, ALTURA_CAMARA_TECNICA, 0.2), centro)
+		faldon.rotation.y = -angulo
 
 func _crear_viga(posicion: Vector3, tamano: Vector3) -> void:
 	var visual := MeshInstance3D.new()
@@ -115,7 +133,27 @@ func _crear_viga(posicion: Vector3, tamano: Vector3) -> void:
 	var malla := BoxMesh.new()
 	malla.size = tamano
 	visual.mesh = malla
+	MaterialesAmbiente.aplicar(visual, MaterialesAmbiente.YESO)
 	add_child(visual)
+
+func _crear_caja(nombre: String, tamano: Vector3, posicion: Vector3) -> StaticBody3D:
+	var cuerpo := StaticBody3D.new()
+	cuerpo.name = nombre
+	cuerpo.position = posicion
+	var forma := BoxShape3D.new()
+	forma.size = tamano
+	var colision := CollisionShape3D.new()
+	colision.shape = forma
+	cuerpo.add_child(colision)
+	var visual := MeshInstance3D.new()
+	var malla := BoxMesh.new()
+	malla.size = tamano
+	visual.mesh = malla
+	MaterialesAmbiente.aplicar(visual, MaterialesAmbiente.PLENUM)
+	visual.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	cuerpo.add_child(visual)
+	add_child(cuerpo)
+	return cuerpo
 
 func _crear_tile(posicion: Vector3, tamano: float, mostrar_malla: bool = true) -> StaticBody3D:
 	var cuerpo := StaticBody3D.new()
@@ -131,6 +169,7 @@ func _crear_tile(posicion: Vector3, tamano: float, mostrar_malla: bool = true) -
 		var malla := BoxMesh.new()
 		malla.size = forma.size
 		visual.mesh = malla
+		MaterialesAmbiente.aplicar(visual, MaterialesAmbiente.PLACA_TECHO)
 		visual.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 		cuerpo.add_child(visual)
 	add_child(cuerpo)
@@ -163,6 +202,7 @@ func _crear_cilindro(nombre: String, alto: float, y: float) -> void:
 	malla.bottom_radius = radio_m
 	malla.height = alto
 	visual.mesh = malla
+	MaterialesAmbiente.aplicar(visual, MaterialesAmbiente.PISO if nombre == "Piso" else MaterialesAmbiente.PLENUM)
 	visual.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	if nombre == "Techo":
 		visual.position.y = alto * 0.5

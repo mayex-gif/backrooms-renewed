@@ -6,6 +6,7 @@ extends RefCounted
 ## Altura de las puertas (la misma que usa sala_modular.gd).
 const ALTO_PUERTA := 2.45
 const GROSOR := 0.2
+const MaterialesAmbiente = preload("res://salas/materiales_ambiente.gd")
 
 
 ## Tapa, sobre la puerta de "sala", el tramo entre la abertura baja y la alta.
@@ -57,5 +58,6 @@ static func _crear_cuerpo(nombre: String, tamano: Vector3) -> StaticBody3D:
 	var malla := BoxMesh.new()
 	malla.size = tamano
 	visual.mesh = malla
+	MaterialesAmbiente.aplicar(visual, MaterialesAmbiente.PARED)
 	cuerpo.add_child(visual)
 	return cuerpo

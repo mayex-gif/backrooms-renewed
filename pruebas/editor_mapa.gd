@@ -680,9 +680,14 @@ func _entrada_lienzo(evento: InputEvent) -> void:
 			_salas[_arrastre].z = centro_ajustado.y
 			_lienzo.queue_redraw()
 		else:
-			var sobre_sala := not _vista_techo and _indice_sala_en(_cursor_mapa) >= 0
-			_lienzo.mouse_default_cursor_shape = Control.CURSOR_MOVE if sobre_sala else Control.CURSOR_ARROW
-			_lienzo.queue_redraw()
+			if _vista_techo:
+				# En esta vista el cursor no altera el dibujo ni hay fantasma; evitar
+				# recomputar todas las huellas, puertas y placas por cada movimiento.
+				_lienzo.mouse_default_cursor_shape = Control.CURSOR_ARROW
+			else:
+				var sobre_sala := _indice_sala_en(_cursor_mapa) >= 0
+				_lienzo.mouse_default_cursor_shape = Control.CURSOR_MOVE if sobre_sala else Control.CURSOR_ARROW
+				_lienzo.queue_redraw()
 	elif evento is InputEventMouseButton:
 		if evento.button_index == MOUSE_BUTTON_MIDDLE and evento.pressed:
 			_paneo_activo = true

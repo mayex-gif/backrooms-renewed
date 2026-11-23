@@ -3,8 +3,8 @@ extends RefCounted
 ## abajo. Lo comparten las salas rectangulares y las circulares.
 
 const ColorLuz := Color(1.0, 0.97, 0.86)
-## Plano común: cara inferior del panel, placas y cara superior de las vigas.
-const PLANO_ENCASTRE_Y := -0.16
+## Cara inferior común del cielorraso: a ras de la coronación de las paredes.
+const PLANO_ENCASTRE_Y := 0.0
 const ALTURA_PANEL := 0.04
 ## Se restan 8 cm al lado del módulo de 1,5 m: 4 cm por lado para librar
 ## la retícula (7 cm) y dejar una junta de 5 mm.

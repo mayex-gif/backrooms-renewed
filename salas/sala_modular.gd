@@ -20,10 +20,14 @@ extends Node3D
 @export var zonas_techo_excluidas: Array = []
 
 const LuminariaScript = preload("res://salas/luminaria.gd")
+const MaterialesAmbiente = preload("res://salas/materiales_ambiente.gd")
+const ServiciosTecho = preload("res://salas/servicios_techo.gd")
 const GROSOR_PLACA_TECHO := 0.12
 const GROSOR_VIGA_TECHO := 0.06
 const DESFASE_PLACA_TECHO := LuminariaScript.DESFASE_PLACA_TECHO
-const INCLINACION_PLACA_SUELTA := 3.0
+const INCLINACION_PLACA_SUELTA := 1.0
+## Distancia vertical entre la parte superior de las paredes y la cara inferior del plenum.
+const ALTURA_CAMARA_TECNICA := 1.9
 
 func _ready() -> void:
 	var huella := _huella()
@@ -32,6 +36,41 @@ func _ready() -> void:
 	_crear_columnas()
 	for arista in huella.size():
 		_crear_pared_con_huecos(arista, huella)
+	_crear_faldon_plenum(huella)
+
+func _crear_faldon_plenum(huella: PackedVector2Array) -> void:
+	# Cierra la cámara sobre las placas y evita que se vea el exterior por el borde.
+	for arista in huella.size():
+		var inicio := huella[arista]
+		var fin := huella[(arista + 1) % huella.size()]
+		var eje := (fin - inicio).normalized()
+		var largo := inicio.distance_to(fin)
+		var aberturas: Array[Vector2] = []
+		for socket in sockets:
+			if not _socket_en_arista(socket, arista):
+				continue
+			var lateral := (Vector2(socket.posicion_local.x, socket.posicion_local.z) - inicio).dot(eje)
+			aberturas.append(Vector2(
+				clampf(lateral - socket.ancho * 0.5, 0.0, largo),
+				clampf(lateral + socket.ancho * 0.5, 0.0, largo)
+			))
+		aberturas = _unir_intervalos(aberturas)
+		var cursor := 0.0
+		for abertura in aberturas:
+			_crear_tramo_faldon(inicio, eje, cursor, abertura.x)
+			cursor = abertura.y
+		_crear_tramo_faldon(inicio, eje, cursor, largo)
+
+func _crear_tramo_faldon(inicio: Vector2, eje: Vector2, desde: float, hasta: float) -> void:
+	if hasta - desde < 0.2:
+		return
+	var punto := inicio + eje * ((desde + hasta) * 0.5)
+	var cuerpo := _crear_caja(
+		"FaldonPlenum",
+		Vector3(hasta - desde + 0.02, ALTURA_CAMARA_TECNICA, 0.2),
+		Vector3(punto.x, alto_m + ALTURA_CAMARA_TECNICA * 0.5, punto.y)
+	)
+	cuerpo.rotation.y = -atan2(eje.y, eje.x)
 
 func _huella() -> PackedVector2Array:
 	if huella_local.size() >= 3:
@@ -140,6 +179,8 @@ func _crear_caja(nombre: String, tamano: Vector3, posicion: Vector3, da_sombra: 
 	malla.size = tamano
 	var visual := MeshInstance3D.new()
 	visual.mesh = malla
+	var tipo_material := MaterialesAmbiente.PLENUM if nombre == "FaldonPlenum" else MaterialesAmbiente.PARED
+	MaterialesAmbiente.aplicar(visual, tipo_material)
 	if not da_sombra:
 		visual.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	cuerpo.add_child(visual)
@@ -210,8 +251,22 @@ func _crear_prisma_poligonal(nombre: String, poligono: PackedVector2Array, centr
 	malla.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arrays)
 	var visual := MeshInstance3D.new()
 	visual.mesh = malla
+	MaterialesAmbiente.aplicar(visual, _tipo_material_superficie(nombre))
 	visual.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON if sombra else GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	contenedor.add_child(visual)
+
+func _tipo_material_superficie(nombre: String) -> String:
+	match nombre:
+		"Piso":
+			return MaterialesAmbiente.PISO
+		"TileTecho":
+			return MaterialesAmbiente.PLACA_TECHO
+		"Plenum superior":
+			return MaterialesAmbiente.PLENUM
+		"ReticulaTecho":
+			return MaterialesAmbiente.YESO
+		_:
+			return MaterialesAmbiente.YESO
 
 func _agregar_triangulo(vertices: PackedVector3Array, normales: PackedVector3Array, a: Vector3, b: Vector3, c: Vector3, normal: Vector3) -> void:
 	vertices.append(a)
@@ -250,6 +305,7 @@ func _crear_columnas() -> void:
 		var malla := BoxMesh.new()
 		malla.size = tamano
 		visual.mesh = malla
+		MaterialesAmbiente.aplicar(visual, MaterialesAmbiente.YESO)
 		columna.add_child(visual)
 		add_child(columna)
 	for indice in columnas_adicionales.size():
@@ -271,6 +327,7 @@ func _crear_columna_fija(nombre: String, base: Vector2, huella_columna: Vector2)
 	var malla := BoxMesh.new()
 	malla.size = tamano
 	visual.mesh = malla
+	MaterialesAmbiente.aplicar(visual, MaterialesAmbiente.YESO)
 	columna.add_child(visual)
 	add_child(columna)
 
@@ -345,8 +402,9 @@ func _crear_techo_modular() -> void:
 	var filas_tiles := maxi(1, ceili(limites.size.y / tam_tile))
 	var origen_x := limites.position.x + (limites.size.x - columnas_tiles * tam_tile) * 0.5
 	var origen_z := limites.position.y + (limites.size.y - filas_tiles * tam_tile) * 0.5
-	# Cámara oscura superior: los huecos dejan ver estructura, no el cielo.
-	_crear_superficie_poligonal("Plenum superior", _huella(), zonas_techo_excluidas, alto_m + 0.02, 0.2)
+	# Tapa estructural sobre una cámara técnica de 1,9 m de altura libre.
+	_crear_superficie_poligonal("Plenum superior", _huella(), zonas_techo_excluidas, alto_m + ALTURA_CAMARA_TECNICA + 0.1, 0.2)
+	ServiciosTecho.crear(self, _huella(), alto_m, zonas_techo_excluidas)
 	for x in range(columnas_tiles + 1):
 		var px := origen_x + x * tam_tile
 		_crear_viga_techo(GeometriaHuella.rectangulo(0.07, limites.size.y, Vector2(px, limites.get_center().y)), alto_m + LuminariaScript.PLANO_ENCASTRE_Y + GROSOR_VIGA_TECHO * 0.5)
@@ -411,7 +469,7 @@ func _crear_techo_modular() -> void:
 					luces_operativas += 1
 			elif tile_rectangular_completo:
 				if not es_posicion_luz and valor > 0.93:
-					_crear_tile(centro, ancho_tile, largo_tile, DESFASE_PLACA_TECHO + rng.randf_range(0.04, 0.12), rng.randf_range(-INCLINACION_PLACA_SUELTA, INCLINACION_PLACA_SUELTA))
+					_crear_tile(centro, ancho_tile, largo_tile, DESFASE_PLACA_TECHO + rng.randf_range(0.015, 0.03), rng.randf_range(-INCLINACION_PLACA_SUELTA, INCLINACION_PLACA_SUELTA))
 				else:
 					_crear_tile(centro, ancho_tile, largo_tile, DESFASE_PLACA_TECHO)
 			else:
@@ -436,6 +494,7 @@ func _crear_tile(centro: Vector3, ancho: float, largo: float, elevacion: float =
 		var malla := BoxMesh.new()
 		malla.size = tamano
 		visual.mesh = malla
+		MaterialesAmbiente.aplicar(visual, MaterialesAmbiente.PLACA_TECHO)
 		visual.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 		cuerpo.add_child(visual)
 	add_child(cuerpo)

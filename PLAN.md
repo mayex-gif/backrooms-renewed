@@ -31,6 +31,7 @@ pendientes hasta recorrerlas en Godot.
 - [ ] Implementado; pendiente de prueba manual: añadir salas de 2,5 × 2,5 m para las alturas modulares disponibles en el catálogo.
 - [ ] Implementado; pendiente de prueba manual: agregar y quitar columnas de tamaño configurable por sala desde el editor y persistirlas en el mapa.
 - [ ] Implementado; pendiente de prueba manual: desactivar la generación automática para que solo se creen las luminarias elegidas manualmente, reduciendo el número total de luces.
+- [ ] Implementado; pendiente de prueba manual: evitar el redibujado completo de la vista de techo cuando solo se mueve el cursor.
 - [ ] Recorrer el catálogo y comprobar visualmente puertas, colisiones, techos y materiales.
 - [ ] Validar manualmente las placas centradas en salas rectangulares, circulares y de 2,5 × 2,5 m; convertir placas normales en luces y comprobar los cuatro estados dentro de la partida.
 - [ ] Validar manualmente columnas personalizadas: tamaños, límites de sala, guardado/carga, duplicado y aparición en la partida.
@@ -42,7 +43,9 @@ pendientes hasta recorrerlas en Godot.
 - [x] Ampliar el plano con una sala de columnas y una cámara de 8 m accesibles por el recorrido.
 - [x] Abrir los pasos entre alas principales para que se perciban como zonas amplias conectadas.
 - [ ] Diseñar precipicios jugables con bordes seguros y acceso claro a cada plataforma explorable.
-- [ ] Diseñar el plenum del techo para mostrar cañerías y permitir acceso superior sin dejar huecos accidentales al exterior.
+- [x] Reservar 1,9 m de cámara técnica sobre las placas; añadir tendidos de agua, gas, electricidad y ventilación visibles por placas ausentes/desplazadas; sellar el perímetro y abrir el faldón sobre sockets conectados.
+- [ ] Revisar en Godot la cámara técnica en salas rectangulares, poligonales y circulares; confirmar que los tendidos se vean por las aberturas y no salgan de la huella ni atraviesen las placas.
+- [ ] Añadir rutas transitables de mantenimiento y conectarlas a escaleras o conectores entre niveles, manteniendo sellado el exterior.
 - [x] Añadir ajustes de desarrollo accesibles desde el menú de pausa y una vista de techo superpuesta en el editor de mapas; mostrar placas y luces, cambiar el estado de cada luz con un clic y guardar los cambios en el mapa.
 - [x] Usar el conteo de salas para extender o acortar el plano curado; usar los pesos para priorizar ramales grandes y abiertos.
 - [x] Reconstruir el mapa actual desde los ajustes de desarrollo y sellar las salidas de ramales omitidos.
@@ -54,6 +57,12 @@ pendientes hasta recorrerlas en Godot.
 ## Hito 4 — Continuidad y rendimiento
 
 - [x] Crear pruebas separadas de una escalera entre dos plantas y de una galería junto a una caída.
+- [ ] Añadir al editor un selector de piso de trabajo y guardar el nivel vertical de cada sala en intervalos fijos de 5 m, con niveles arriba y abajo del inicial.
+- [ ] Implementar rampas/túneles inclinados y escaleras transitables que unan pisos; admitir conectores que abarquen varios niveles y abrir las superficies atravesadas.
+- [ ] Resolver las superficies coincidentes de salas apiladas como una sola losa con cara superior de piso e inferior de techo.
+- [ ] Integrar la cámara técnica de 1,9 m con los pisos verticales: resolver su relación con la altura libre de salas y el intervalo estructural de 5 m, y habilitar pasadizos transitables solo en sectores previstos.
+- [ ] Normalizar cada forma del catálogo en alturas común/media/alta de 5/10/15 m; conservar el pasaje bajo de 1,35 m como excepción funcional.
+- [ ] Conectar paredes, pisos, techos y accesos entre niveles según su altura real, conservando alcanzables las entradas y salidas de los conectores.
 - [ ] Convertir las salas de altura variable y las conexiones verticales en parte del plano jugable.
 - [ ] Continuar el modo diseñado con módulos de plano curados, manteniendo recorridos amplios y legibles.
 - [ ] Descargar regiones lejanas y conservar datos para regenerarlas.
@@ -155,6 +164,7 @@ durante esta iteración.
 - [ ] Implementado; pendiente de prueba manual: edición de columnas personalizadas por sala, con dimensiones independientes y persistencia.
 - [ ] Implementado; pendiente de prueba manual: centrar placas, vigas y luminarias; convertir una placa normal en luminaria desde la vista de techo.
 - [ ] Implementado; pendiente de prueba manual: con generación automática desactivada, confirmar que solo aparezcan las luces elegidas manualmente y que el ajuste persista al guardar y volver a jugar.
+- [ ] Implementado; pendiente de prueba manual: verificar que la vista de techo siga respondiendo al hacer clic, paneo y zoom tras eliminar redibujados sin cambios visuales.
 - [ ] Revisar en Godot la colocación y el tamaño individual de columnas, las conexiones de las nuevas galerías y los diámetros circulares nuevos.
 - [ ] Revisar en Godot el centrado de placas y vigas, la conversión placa/luz y la colocación, guardado y carga de columnas personalizadas.
 - [ ] Etapa 2: validar visualmente la superposición parcial de salas y la elección independiente de cada pared interior.

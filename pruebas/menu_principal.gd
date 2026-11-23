@@ -5,6 +5,8 @@ const PanelAjustesScript = preload("res://sistema/panel_ajustes.gd")
 
 var _centro_menu: CenterContainer
 var _centro_opciones: CenterContainer
+var _centro_personajes: CenterContainer
+var _boton_personaje: Button
 
 func _ready() -> void:
 	_crear_interfaz()
@@ -54,6 +56,9 @@ func _crear_interfaz() -> void:
 	columna.add_child(subtitulo)
 	var separador := HSeparator.new()
 	columna.add_child(separador)
+	_boton_personaje = _crear_boton("Elegir personaje: " + _nombre_personaje_actual(), "Seleccioná el modelo que vas a usar al entrar al nivel.")
+	_boton_personaje.pressed.connect(_abrir_selector_personaje)
+	columna.add_child(_boton_personaje)
 
 	var plano := _crear_boton("Plano diseñado", "Explorá un nivel amplio con conexiones y recorridos pensados.")
 	plano.pressed.connect(_abrir_escena.bind("res://pruebas/escenario_plano.tscn"))
@@ -98,6 +103,66 @@ func _abrir_opciones() -> void:
 	panel.cerrado.connect(_cerrar_opciones)
 	_centro_opciones.add_child(panel)
 
+func _abrir_selector_personaje() -> void:
+	_centro_menu.hide()
+	_centro_personajes = CenterContainer.new()
+	_centro_personajes.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	add_child(_centro_personajes)
+	var panel := PanelContainer.new()
+	panel.custom_minimum_size = Vector2(620, 0)
+	_centro_personajes.add_child(panel)
+	var margen := MarginContainer.new()
+	for lado in ["left", "right"]:
+		margen.add_theme_constant_override("margin_%s" % lado, 38)
+	for lado in ["top", "bottom"]:
+		margen.add_theme_constant_override("margin_%s" % lado, 28)
+	panel.add_child(margen)
+	var columna := VBoxContainer.new()
+	columna.add_theme_constant_override("separation", 14)
+	margen.add_child(columna)
+	var titulo := Label.new()
+	titulo.text = "ELEGIR PERSONAJE"
+	titulo.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	titulo.add_theme_font_size_override("font_size", 28)
+	columna.add_child(titulo)
+	var descripcion := Label.new()
+	descripcion.text = "La elección se guarda y se aplica al comenzar una partida."
+	descripcion.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	descripcion.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	columna.add_child(descripcion)
+	var casual := _crear_boton("Explorador casual", "Personaje actual con ropa casual y linterna.")
+	casual.pressed.connect(_seleccionar_personaje.bind("casual"))
+	columna.add_child(casual)
+	var guardia := _crear_boton("Guardia de seguridad", "Uniforme, rig y animaciones idle, caminar y correr.")
+	guardia.pressed.connect(_seleccionar_personaje.bind("guardia_seguridad"))
+	columna.add_child(guardia)
+	var volver := _crear_boton("Volver", "Regresar al menú principal sin cambiar la elección.")
+	volver.pressed.connect(_cerrar_selector_personaje)
+	columna.add_child(volver)
+	casual.grab_focus()
+
+func _seleccionar_personaje(id_personaje: String) -> void:
+	var selector := get_node_or_null("/root/SelectorPersonaje")
+	if selector == null or not selector.has_method("seleccionar"):
+		push_error("No está disponible el selector de personajes.")
+		return
+	if not bool(selector.call("seleccionar", id_personaje)):
+		push_warning("No se pudo guardar la elección; se aplicará en esta sesión.")
+	_boton_personaje.text = "Elegir personaje: " + _nombre_personaje_actual()
+	_cerrar_selector_personaje()
+
+func _nombre_personaje_actual() -> String:
+	var selector := get_node_or_null("/root/SelectorPersonaje")
+	if selector != null and selector.has_method("obtener_nombre_actual"):
+		return String(selector.call("obtener_nombre_actual"))
+	return "Explorador casual"
+
+func _cerrar_selector_personaje() -> void:
+	if _centro_personajes != null:
+		_centro_personajes.queue_free()
+		_centro_personajes = null
+	_centro_menu.show()
+
 func _cerrar_opciones() -> void:
 	if _centro_opciones != null:
 		_centro_opciones.queue_free()
@@ -108,6 +173,9 @@ func _unhandled_input(evento: InputEvent) -> void:
 	if evento.is_action_pressed("ui_cancel") and _centro_opciones != null:
 		get_viewport().set_input_as_handled()
 		_cerrar_opciones()
+	elif evento.is_action_pressed("ui_cancel") and _centro_personajes != null:
+		get_viewport().set_input_as_handled()
+		_cerrar_selector_personaje()
 
 func _abrir_escena(ruta: String) -> void:
 	var error := get_tree().change_scene_to_file(ruta)
