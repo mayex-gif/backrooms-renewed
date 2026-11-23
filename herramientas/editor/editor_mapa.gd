@@ -3,6 +3,8 @@ extends Control
 
 const ConexionesMapaScript = preload("res://datos/conexiones_mapa.gd")
 const PlanificadorSolapesScript = preload("res://datos/planificador_solapes.gd")
+const ServiciosTechoScript = preload("res://salas/servicios_techo.gd")
+const RejillaTechoScript = preload("res://datos/rejilla_techo.gd")
 
 var _catalogo: Array[SalaDef] = []
 var _salas: Array[Dictionary] = []
@@ -716,7 +718,7 @@ func _entrada_lienzo(evento: InputEvent) -> void:
 				_lienzo.queue_redraw()
 				return
 			if _vista_techo:
-				_cambiar_estado_luz_techo(punto_mapa)
+				_cambiar_estado_luz_techo(punto_mapa, -1)
 				return
 			if _modo_columnas:
 				var sala_clic := _indice_sala_en(punto_mapa)
@@ -732,13 +734,11 @@ func _entrada_lienzo(evento: InputEvent) -> void:
 				for tramo in plan_actual.segmentos:
 					if tramo.clave == clave_solape:
 						actual = String(tramo.estado)
-				var nuevo := PlanificadorSolapesScript.siguiente_estado(actual)
-				_estados_solape[clave_solape] = nuevo
-				_cambio_mapa("Pared interior: %s." % nuevo)
+				_ciclar_solape(clave_solape, -1)
 				return
 			var clave_conexion := _conexion_en(punto_mapa)
 			if not clave_conexion.is_empty():
-				_cambiar_conexion(clave_conexion, evento.shift_pressed)
+				_cambiar_conexion(clave_conexion, evento.shift_pressed, -1)
 				return
 			_arrastre = _indice_sala_en(punto_mapa)
 			if _arrastre >= 0:
@@ -755,8 +755,18 @@ func _entrada_lienzo(evento: InputEvent) -> void:
 				if sala_clic >= 0:
 					_seleccion_sala = sala_clic
 				_quitar_columna_en(_punto_mapa(evento.position))
-			elif not _vista_techo:
-				_borrar(evento.position)
+			elif _vista_techo:
+				_cambiar_estado_luz_techo(_punto_mapa(evento.position), 1)
+			else:
+				var punto_derecho := _punto_mapa(evento.position)
+				var solape_derecho := _segmento_solape_en(punto_derecho)
+				var conexion_derecha := _conexion_en(punto_derecho) if solape_derecho.is_empty() else ""
+				if not solape_derecho.is_empty():
+					_ciclar_solape(solape_derecho, 1)
+				elif not conexion_derecha.is_empty():
+					_cambiar_conexion(conexion_derecha, false, 1)
+				else:
+					_borrar(evento.position)
 		_lienzo.queue_redraw()
 
 ## El lienzo no tiene foco de teclado, así que las teclas no llegan a su
@@ -1072,7 +1082,18 @@ func _conexion_en(punto: Vector2) -> String:
 	return cercana
 
 	## Click recorre los estados; Mayús vuelve al modo automático.
-func _cambiar_conexion(clave: String, restablecer: bool) -> void:
+func _ciclar_solape(clave: String, direccion: int) -> void:
+	var plan_actual: Dictionary = PlanificadorSolapesScript.calcular(_modulos_para_conexiones(), _estados_solape)
+	var actual := ConexionesMapaScript.ESTADO_CERRADA
+	for tramo in plan_actual.segmentos:
+		if tramo.clave == clave:
+			actual = String(tramo.estado)
+	var nuevo := PlanificadorSolapesScript.siguiente_estado(actual) if direccion > 0 else PlanificadorSolapesScript.estado_anterior(actual)
+	_estados_solape[clave] = nuevo
+	_cambio_mapa("Pared interior: %s." % nuevo)
+
+
+func _cambiar_conexion(clave: String, restablecer: bool, direccion: int = 1) -> void:
 	var actual: Dictionary = {}
 	for conexion in ConexionesMapaScript.calcular(_modulos_para_conexiones(), _estados_conexion):
 		if conexion.clave == clave:
@@ -1083,7 +1104,7 @@ func _cambiar_conexion(clave: String, restablecer: bool) -> void:
 		_estados_conexion.erase(clave)
 		_cambio_mapa("Conexión %s: vuelve al modo automático." % clave)
 	else:
-		var nuevo := ConexionesMapaScript.siguiente_estado(String(actual.estado))
+		var nuevo := ConexionesMapaScript.siguiente_estado(String(actual.estado)) if direccion > 0 else ConexionesMapaScript.estado_anterior(String(actual.estado))
 		_estados_conexion[clave] = nuevo
 		_cambio_mapa("Conexión %s: %s." % [clave, nuevo])
 
@@ -1153,6 +1174,7 @@ func _dibujar() -> void:
 	_dibujar_cuadricula(centro, _escala * 5.0, Color(0.34, 0.34, 0.31), 1.0)
 	_lienzo.draw_line(Vector2(0, centro.y), Vector2(_lienzo.size.x, centro.y), Color(0.55, 0.30, 0.30), 1.5)
 	_lienzo.draw_line(Vector2(centro.x, 0), Vector2(centro.x, _lienzo.size.y), Color(0.30, 0.50, 0.30), 1.5)
+	_luces_auto_ids.clear()
 	var modulos := _modulos_para_conexiones()
 	var solapadas := {}
 	for par in ConexionesMapaScript.pares_solapados(modulos):
@@ -1174,6 +1196,7 @@ func _dibujar() -> void:
 		_lienzo.draw_colored_polygon(poligono, color)
 		if _vista_techo:
 			_dibujar_tiles_techo(sala, definicion, deg_to_rad(float(sala.get("angulo", 0.0))), centro)
+			_dibujar_servicios_techo(sala, definicion, deg_to_rad(float(sala.get("angulo", 0.0))), centro)
 		_dibujar_columnas_personalizadas(sala, definicion, centro)
 		for e in poligono.size():
 			var color_borde := Color(0.30, 0.85, 1.0) if i == _seleccion_sala else Color(0.83, 0.79, 0.62)
@@ -1267,7 +1290,7 @@ func _dibujar_leyenda() -> void:
 	_lienzo.draw_string(fuente, Vector2(12, 20), "%s · zoom %d%% · %d salas" % [modo, roundi(_escala / 24.0 * 100.0), _salas.size()], HORIZONTAL_ALIGNMENT_LEFT, -1, 13, Color(0.85, 0.85, 0.8))
 	var entradas: Array = []
 	if _vista_techo:
-		entradas = [["Luz encendida", Color(0.82, 0.79, 0.66)], ["Intermitente", Color(0.76, 0.48, 0.19)], ["Averiada", Color(0.20, 0.20, 0.19)]]
+		entradas = [["Luz encendida", Color(0.82, 0.79, 0.66)], ["Intermitente", Color(0.76, 0.48, 0.19)], ["Averiada", Color(0.20, 0.20, 0.19)], ["Rota", Color(0.30, 0.22, 0.20)], ["Rotada", Color(0.50, 0.50, 0.58)], ["Faltante", Color(0.10, 0.09, 0.08)], ["Caño de agua", Color(0.85, 0.55, 0.35)], ["Caño de gas", Color(0.95, 0.8, 0.2)], ["Ducto", Color(0.65, 0.7, 0.72)], ["Bandeja", Color(0.55, 0.55, 0.5)]]
 	else:
 		entradas = [["Puerta", Color(0.55, 1.0, 0.55)], ["Pared abierta", Color(0.55, 0.95, 1.0)], ["Pared cerrada", Color(1.0, 0.6, 0.2)], ["Intersección", Color(0.85, 0.55, 1.0)]]
 	var origen := Vector2(12, _lienzo.size.y - 12 - entradas.size() * 18)
@@ -1284,10 +1307,12 @@ func _dibujar_tiles_techo(sala: Dictionary, definicion: SalaDef, angulo: float, 
 	var huella := definicion.obtener_huella_local()
 	var limites := GeometriaHuella.limites(huella)
 	var centro_local := limites.get_center()
-	var columnas_tiles := maxi(1, ceili(limites.size.x / TAM_TILE))
-	var filas_tiles := maxi(1, ceili(limites.size.y / TAM_TILE))
-	var origen_x := limites.position.x + (limites.size.x - columnas_tiles * TAM_TILE) * 0.5
-	var origen_z := limites.position.y + (limites.size.y - filas_tiles * TAM_TILE) * 0.5
+	var origen_sala := Vector2(sala.x, sala.z) - centro_local.rotated(angulo)
+	var rejilla := RejillaTechoScript.calcular(limites, origen_sala, Vector2.RIGHT.rotated(angulo), Vector2.DOWN.rotated(angulo))
+	var columnas_tiles: int = rejilla.columnas
+	var filas_tiles: int = rejilla.filas
+	var origen_x: float = rejilla.origen.x
+	var origen_z: float = rejilla.origen.y
 	for x in columnas_tiles:
 		for z in filas_tiles:
 			var x0 := origen_x + x * TAM_TILE
@@ -1302,6 +1327,14 @@ func _dibujar_tiles_techo(sala: Dictionary, definicion: SalaDef, angulo: float, 
 			var modo_luz := int(_modos_luces.get(id_luz, -1))
 			if not _luces_automaticas and not _luces_manuales.has(id_luz):
 				modo_luz = -1
+			# Luz automática: mismas posiciones que usa el nivel (cada 3 placas completas).
+			var area_conservada := 0.0
+			for pieza_area in piezas:
+				area_conservada += absf(GeometriaHuella.area_firmada(pieza_area))
+			var es_posicion_luz := posmod(RejillaTechoScript.indice_mundo(centro_mundo.x) - 1, 3) == 0 and posmod(RejillaTechoScript.indice_mundo(centro_mundo.y) - 1, 3) == 0
+			if _luces_automaticas and not _luces_manuales.has(id_luz) and es_posicion_luz and piezas.size() == 1 and absf(area_conservada - TAM_TILE * TAM_TILE) <= 0.01:
+				modo_luz = 0
+				_luces_auto_ids[id_luz] = true
 			var color_tile := Color(0.44, 0.44, 0.41)
 			if modo_luz == 0:
 				color_tile = Color(0.82, 0.79, 0.66)
@@ -1309,6 +1342,12 @@ func _dibujar_tiles_techo(sala: Dictionary, definicion: SalaDef, angulo: float, 
 				color_tile = Color(0.76, 0.48, 0.19)
 			elif modo_luz == 2:
 				color_tile = Color(0.20, 0.20, 0.19)
+			elif modo_luz == 3:
+				color_tile = Color(0.30, 0.22, 0.20)
+			elif modo_luz == 4:
+				color_tile = Color(0.50, 0.50, 0.58)
+			elif modo_luz == 5:
+				color_tile = Color(0.10, 0.09, 0.08)
 			for pieza in piezas:
 				var poligono := PackedVector2Array()
 				for punto in pieza:
@@ -1317,7 +1356,16 @@ func _dibujar_tiles_techo(sala: Dictionary, definicion: SalaDef, angulo: float, 
 				_lienzo.draw_colored_polygon(poligono, color_tile)
 				for indice in poligono.size():
 					_lienzo.draw_line(poligono[indice], poligono[(indice + 1) % poligono.size()], Color(0.12, 0.12, 0.12), 1.0)
-			if modo_luz >= 0:
+			if modo_luz == 3 or modo_luz == 4:
+				var c := centro_lienzo + centro_mundo * _escala
+				var r := TAM_TILE * 0.3 * _escala
+				if modo_luz == 3:
+					_lienzo.draw_line(c + Vector2(-r, -r).rotated(angulo), c + Vector2(r, r).rotated(angulo), Color(0.9, 0.5, 0.4), 2.0)
+					_lienzo.draw_line(c + Vector2(r, -r).rotated(angulo) * 0.4, c + Vector2(-r, r).rotated(angulo) * 0.4, Color(0.9, 0.5, 0.4), 2.0)
+				else:
+					var rombo := PackedVector2Array([c + Vector2(0, -r), c + Vector2(r, 0), c + Vector2(0, r), c + Vector2(-r, 0), c + Vector2(0, -r)])
+					_lienzo.draw_polyline(rombo, Color(0.8, 0.85, 1.0), 2.0)
+			if modo_luz >= 0 and modo_luz <= 2:
 				var color_icono := Color(1.0, 0.95, 0.76)
 				if modo_luz == 1:
 					color_icono = Color(1.0, 0.66, 0.24)
@@ -1325,7 +1373,32 @@ func _dibujar_tiles_techo(sala: Dictionary, definicion: SalaDef, angulo: float, 
 					color_icono = Color(0.62, 0.62, 0.59)
 				_lienzo.draw_circle(centro_lienzo + centro_mundo * _escala, 4.5, color_icono)
 
-func _cambiar_estado_luz_techo(punto_mapa: Vector2) -> void:
+## Ids de placas que llevan una luz automática (sin estado fijado). Se llena al dibujar.
+var _luces_auto_ids: Dictionary = {}
+
+## Orden del ciclo de estados de una placa del techo (valores guardados en el mapa).
+const ESTADOS_PLACA := [-1, 0, 1, 2, 3, 4, 5]
+const NOMBRES_PLACA := {-1: "placa normal", 0: "luz encendida", 1: "luz intermitente", 2: "luz averiada", 3: "placa rota", 4: "placa rotada", 5: "placa faltante"}
+
+## direccion: +1 siguiente (click derecho), -1 anterior (click izquierdo).
+## Dibuja los caños, ductos y bandejas que pasan sobre el cielorraso de la sala.
+func _dibujar_servicios_techo(sala: Dictionary, definicion: SalaDef, angulo: float, centro_lienzo: Vector2) -> void:
+	var huella := definicion.obtener_huella_local()
+	var centro_local := GeometriaHuella.limites(huella).get_center()
+	var colores := {"agua": Color(0.85, 0.55, 0.35), "gas": Color(0.95, 0.8, 0.2), "ducto": Color(0.65, 0.7, 0.72), "bandeja": Color(0.55, 0.55, 0.5)}
+	var grosores := {"agua": 2.0, "gas": 2.0, "ducto": 3.0, "bandeja": 1.5}
+	for tramo in ServiciosTechoScript.trazados(huella, []):
+		var a: Vector2 = Vector2(sala.x, sala.z) + (tramo.a - centro_local).rotated(angulo)
+		var b: Vector2 = Vector2(sala.x, sala.z) + (tramo.b - centro_local).rotated(angulo)
+		var tipo := String(tramo.tipo)
+		# Ducto y agua comparten recorrido: se desplazan un poco para verse los dos.
+		var desvio := Vector2(0, 0)
+		if tipo == "ducto" or tipo == "bandeja":
+			desvio = Vector2(0.12, 0.12).rotated(angulo) * (1.0 if tipo == "ducto" else -1.0)
+		_lienzo.draw_line(centro_lienzo + (a + desvio) * _escala, centro_lienzo + (b + desvio) * _escala, colores[tipo], grosores[tipo])
+
+
+func _cambiar_estado_luz_techo(punto_mapa: Vector2, direccion: int = 1) -> void:
 	var id := _luz_techo_en(punto_mapa)
 	if id.is_empty():
 		_estado.text = "No hay una placa válida bajo el cursor."
@@ -1333,14 +1406,18 @@ func _cambiar_estado_luz_techo(punto_mapa: Vector2) -> void:
 	var actual := int(_modos_luces.get(id, -1))
 	if not _luces_automaticas and not _luces_manuales.has(id):
 		actual = -1
-	var modo := 0 if actual == -1 else (actual + 1 if actual < 2 else -1)
+	if _luces_auto_ids.has(id) and not _luces_manuales.has(id):
+		actual = 0
+	var posicion := ESTADOS_PLACA.find(actual)
+	if posicion < 0:
+		posicion = 0
+	var modo: int = ESTADOS_PLACA[posmod(posicion + direccion, ESTADOS_PLACA.size())]
 	_modos_luces[id] = modo
 	_luces_manuales[id] = true
 	_hay_cambios = true
 	_guardar_actual()
 	_registrar_historial()
-	var estados := ["encendida", "intermitente", "averiada", "placa normal"]
-	_estado.text = "Panel %s: %s." % [id, "placa normal" if modo < 0 else estados[modo]]
+	_estado.text = "Placa %s: %s." % [id, NOMBRES_PLACA[modo]]
 	_lienzo.queue_redraw()
 
 func _luz_techo_en(punto_mapa: Vector2) -> String:
@@ -1353,10 +1430,12 @@ func _luz_techo_en(punto_mapa: Vector2) -> String:
 		var limites := GeometriaHuella.limites(huella)
 		var centro_local := limites.get_center()
 		var angulo := deg_to_rad(float(sala.get("angulo", 0.0)))
-		var columnas_tiles := maxi(1, ceili(limites.size.x / TAM_TILE))
-		var filas_tiles := maxi(1, ceili(limites.size.y / TAM_TILE))
-		var origen_x := limites.position.x + (limites.size.x - columnas_tiles * TAM_TILE) * 0.5
-		var origen_z := limites.position.y + (limites.size.y - filas_tiles * TAM_TILE) * 0.5
+		var origen_sala := Vector2(sala.x, sala.z) - centro_local.rotated(angulo)
+		var rejilla := RejillaTechoScript.calcular(limites, origen_sala, Vector2.RIGHT.rotated(angulo), Vector2.DOWN.rotated(angulo))
+		var columnas_tiles: int = rejilla.columnas
+		var filas_tiles: int = rejilla.filas
+		var origen_x: float = rejilla.origen.x
+		var origen_z: float = rejilla.origen.y
 		for x in columnas_tiles:
 			for z in filas_tiles:
 				var x0 := origen_x + x * TAM_TILE

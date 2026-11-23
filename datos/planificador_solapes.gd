@@ -66,6 +66,9 @@ static func calcular(modulos: Array[Dictionary], estados: Dictionary = {}) -> Di
 static func siguiente_estado(estado: String) -> String:
 	return ConexionesMapa.siguiente_estado(estado)
 
+static func estado_anterior(estado: String) -> String:
+	return ConexionesMapa.estado_anterior(estado)
+
 ## Limita la abertura a la altura máxima del espacio conectado. Si la sala del
 ## otro lado es más alta, la pared de este módulo puede abrirse hasta su techo.
 static func altura_abertura_interseccion(alto_modulo: float, techos_vecinos: Array[float]) -> float:

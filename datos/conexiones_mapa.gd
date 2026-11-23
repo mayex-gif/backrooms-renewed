@@ -84,6 +84,17 @@ static func siguiente_estado(estado: String) -> String:
 	return ESTADO_PUERTA
 
 
+## Estado que precede al actual (click izquierdo en el editor).
+static func estado_anterior(estado: String) -> String:
+	if estado == ESTADO_ABIERTA:
+		return ESTADO_PUERTA
+	if estado == ESTADO_CERRADA:
+		return ESTADO_ABIERTA
+	if estado == ESTADO_INTERSECCION:
+		return ESTADO_CERRADA
+	return ESTADO_INTERSECCION
+
+
 ## Pares de módulos cuyos rectángulos se superponen (tocarse no cuenta).
 static func pares_solapados(modulos: Array[Dictionary]) -> Array[Vector2i]:
 	var pares: Array[Vector2i] = []

@@ -9,6 +9,8 @@ const ALTURA_PANEL := 0.04
 ## Se restan 8 cm al lado del módulo de 1,5 m: 4 cm por lado para librar
 ## la retícula (7 cm) y dejar una junta de 5 mm.
 const MARGEN_PLACA_RETICULA := 0.08
+## Si es true, las luces sin estado del editor fallan al azar (comportamiento viejo).
+const FALLAS_ALEATORIAS := false
 const DESFASE_PLACA_TECHO := 0.005
 const DESFASE_CENTRO_PANEL_Y := PLANO_ENCASTRE_Y + DESFASE_PLACA_TECHO + ALTURA_PANEL * 0.5
 ## En salas altas se reduce gradualmente la atenuación para que la energía
@@ -95,7 +97,11 @@ static func crear(sala: Node3D, posicion: Vector3, ancho: float, largo: float, a
 	if desarrollo != null:
 		probabilidad_falla = float(desarrollo.get("probabilidad_falla"))
 		probabilidad_intermitencia = float(desarrollo.get("probabilidad_intermitencia"))
-	var funciona := rng.randf() > probabilidad_falla
+	# Nada falla al azar: las luces averiadas o intermitentes las elige el editor.
+	if not FALLAS_ALEATORIAS:
+		probabilidad_falla = 0.0
+		probabilidad_intermitencia = 0.0
+	var funciona := rng.randf() >= probabilidad_falla
 	var intermitente := funciona and rng.randf() < probabilidad_intermitencia
 	var modo_inicial := FluorescenteScript.MODO_ENCENDIDA
 	if not funciona:

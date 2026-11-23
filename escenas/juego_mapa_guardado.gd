@@ -100,6 +100,7 @@ func _ready() -> void:
 		if String(segmento.estado) != ConexionesMapaScript.ESTADO_CERRADA:
 			_agregar_hueco_interseccion(segmento, definiciones, giros_salas, origenes, sockets_instancia)
 	for segmento in plan_solapes.ocultos:
+		print("[MapaGuardado] pared oculta: sala %d arista %d de %s a %s (vecinas %s)" % [int(segmento.modulo), int(segmento.arista), segmento.inicio, segmento.fin, segmento.pares])
 		_agregar_hueco_interseccion(segmento, definiciones, giros_salas, origenes, sockets_instancia)
 	for i in definiciones.size():
 		var definicion := definiciones[i]

@@ -49,27 +49,18 @@ class Acumulador:
 			parent.add_child(instancia)
 
 
-static func crear(parent: Node3D, huella: PackedVector2Array, alto_sala: float, zonas_excluidas: Array = []) -> void:
+## Recorrido de las instalaciones: lo usan el nivel (para construirlas) y el editor
+## (para dibujarlas). Cada tramo: {"tipo": "agua"|"ducto"|"gas"|"bandeja", "a": Vector2, "b": Vector2}
+## en coordenadas locales (x, z).
+static func trazados(huella: PackedVector2Array, zonas_excluidas: Array = []) -> Array[Dictionary]:
+	var tramos: Array[Dictionary] = []
 	if huella.size() < 3:
-		return
+		return tramos
 	var regiones := GeometriaHuella.diferencia_por_poligonos(huella, zonas_excluidas)
 	if regiones.is_empty():
-		return
+		return tramos
 	var limites := GeometriaHuella.limites(huella)
 	var centro := limites.get_center()
-	var m_agua := _material(Color(0.55, 0.36, 0.22), 0.85, 0.45)    # cobre oxidado
-	var m_gas := _material(Color(0.78, 0.62, 0.12), 0.1, 0.55)      # amarillo de gas
-	var m_bandeja := _material(Color(0.42, 0.42, 0.40), 0.7, 0.5)
-	var m_cable := _material(Color(0.07, 0.07, 0.07), 0.0, 0.7)
-	var m_ducto := _material(Color(0.52, 0.54, 0.55), 0.8, 0.4)     # chapa galvanizada
-	var m_soporte := _material(Color(0.30, 0.30, 0.29), 0.6, 0.6)
-	var m_conduit := _material(Color(0.62, 0.62, 0.6), 0.6, 0.45)
-	var acum := Acumulador.new()
-
-	var y_cables := alto_sala + 0.32
-	var y_agua := alto_sala + 0.48
-	var y_gas := alto_sala + 0.66
-	var y_ducto := alto_sala + 0.95
 	var limites_z := Vector2(limites.position.y, limites.end.y)
 	var limites_x := Vector2(limites.position.x, limites.end.x)
 	var paso := 3.0
@@ -83,25 +74,54 @@ static func crear(parent: Node3D, huella: PackedVector2Array, alto_sala: float, 
 		primera_x -= paso
 	while primera_x + paso <= limites_x.y - 0.25:
 		primera_x += paso
-
-	var techo_servicios := alto_sala + ALTURA_FORJADO
 	var z := primera_z
 	while z <= limites_z.y + 0.001:
 		for region in regiones:
 			var extremos := _extremos_corte(region, z, true)
 			if extremos.size() == 2 and extremos[1] - extremos[0] >= 0.5:
-				_tubo(acum, m_agua, m_soporte, Vector3(extremos[0], y_agua, z), Vector3(extremos[1], y_agua, z), RADIO_TUBERIA_AGUA, techo_servicios, true)
-				_ducto(acum, m_ducto, m_soporte, Vector3(extremos[0], y_ducto, z), Vector3(extremos[1], y_ducto, z), techo_servicios)
+				tramos.append({"tipo": "agua", "a": Vector2(extremos[0], z), "b": Vector2(extremos[1], z)})
+				tramos.append({"tipo": "ducto", "a": Vector2(extremos[0], z), "b": Vector2(extremos[1], z)})
 		z += paso
-
 	var x := primera_x
 	while x <= limites_x.y + 0.001:
 		for region in regiones:
 			var extremos := _extremos_corte(region, x, false)
 			if extremos.size() == 2 and extremos[1] - extremos[0] >= 0.5:
-				_tubo(acum, m_gas, m_soporte, Vector3(x, y_gas, extremos[0]), Vector3(x, y_gas, extremos[1]), RADIO_TUBERIA_GAS, techo_servicios, false)
-				_bandeja(acum, m_bandeja, m_cable, m_conduit, m_soporte, Vector3(x, y_cables, extremos[0]), Vector3(x, y_cables, extremos[1]), techo_servicios)
+				tramos.append({"tipo": "gas", "a": Vector2(x, extremos[0]), "b": Vector2(x, extremos[1])})
+				tramos.append({"tipo": "bandeja", "a": Vector2(x, extremos[0]), "b": Vector2(x, extremos[1])})
 		x += paso
+	return tramos
+
+
+static func crear(parent: Node3D, huella: PackedVector2Array, alto_sala: float, zonas_excluidas: Array = []) -> void:
+	var tramos := trazados(huella, zonas_excluidas)
+	if tramos.is_empty():
+		return
+	var m_agua := _material(Color(0.55, 0.36, 0.22), 0.85, 0.45)    # cobre oxidado
+	var m_gas := _material(Color(0.78, 0.62, 0.12), 0.1, 0.55)      # amarillo de gas
+	var m_bandeja := _material(Color(0.42, 0.42, 0.40), 0.7, 0.5)
+	var m_cable := _material(Color(0.07, 0.07, 0.07), 0.0, 0.7)
+	var m_ducto := _material(Color(0.52, 0.54, 0.55), 0.8, 0.4)     # chapa galvanizada
+	var m_soporte := _material(Color(0.30, 0.30, 0.29), 0.6, 0.6)
+	var m_conduit := _material(Color(0.62, 0.62, 0.6), 0.6, 0.45)
+	var acum := Acumulador.new()
+	var y_cables := alto_sala + 0.32
+	var y_agua := alto_sala + 0.48
+	var y_gas := alto_sala + 0.66
+	var y_ducto := alto_sala + 0.95
+	var techo_servicios := alto_sala + ALTURA_FORJADO
+	for tramo in tramos:
+		var a: Vector2 = tramo.a
+		var b: Vector2 = tramo.b
+		match String(tramo.tipo):
+			"agua":
+				_tubo(acum, m_agua, m_soporte, Vector3(a.x, y_agua, a.y), Vector3(b.x, y_agua, b.y), RADIO_TUBERIA_AGUA, techo_servicios, true)
+			"ducto":
+				_ducto(acum, m_ducto, m_soporte, Vector3(a.x, y_ducto, a.y), Vector3(b.x, y_ducto, b.y), techo_servicios)
+			"gas":
+				_tubo(acum, m_gas, m_soporte, Vector3(a.x, y_gas, a.y), Vector3(b.x, y_gas, b.y), RADIO_TUBERIA_GAS, techo_servicios, false)
+			"bandeja":
+				_bandeja(acum, m_bandeja, m_cable, m_conduit, m_soporte, Vector3(a.x, y_cables, a.y), Vector3(b.x, y_cables, b.y), techo_servicios)
 	acum.volcar(parent, "ServiciosTecho")
 
 static func _extremos_corte(huella: PackedVector2Array, cota: float, horizontal: bool) -> PackedFloat32Array:

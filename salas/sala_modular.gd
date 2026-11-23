@@ -22,6 +22,7 @@ extends Node3D
 const LuminariaScript = preload("res://salas/luminaria.gd")
 const MaterialesAmbiente = preload("res://salas/materiales_ambiente.gd")
 const ServiciosTecho = preload("res://salas/servicios_techo.gd")
+const RejillaTechoScript = preload("res://datos/rejilla_techo.gd")
 const GROSOR_PLACA_TECHO := 0.12
 const GROSOR_VIGA_TECHO := 0.06
 const DESFASE_PLACA_TECHO := LuminariaScript.DESFASE_PLACA_TECHO
@@ -192,31 +193,9 @@ func _crear_superficie_poligonal(nombre: String, base: PackedVector2Array, exclu
 		if absf(GeometriaHuella.area_firmada(pieza)) > 0.01:
 			_crear_prisma_poligonal(nombre, pieza, y, alto, true, false)
 
-func _crear_prisma_poligonal(nombre: String, poligono: PackedVector2Array, centro_y: float, alto: float, colision: bool, sombra: bool) -> void:
-	if poligono.size() < 3:
-		return
-	var contenedor: Node3D
-	if colision:
-		var cuerpo := StaticBody3D.new()
-		cuerpo.name = nombre
-		cuerpo.position.y = centro_y
-		var forma := ConvexPolygonShape3D.new()
-		var puntos_3d := PackedVector3Array()
-		for punto in poligono:
-			puntos_3d.append(Vector3(punto.x, -alto * 0.5, punto.y))
-		for punto in poligono:
-			puntos_3d.append(Vector3(punto.x, alto * 0.5, punto.y))
-		forma.points = puntos_3d
-		var colision_fisica := CollisionShape3D.new()
-		colision_fisica.shape = forma
-		cuerpo.add_child(colision_fisica)
-		add_child(cuerpo)
-		contenedor = cuerpo
-	else:
-		contenedor = Node3D.new()
-		contenedor.name = nombre
-		contenedor.position.y = centro_y
-		add_child(contenedor)
+## Malla de un prisma vertical. Con "celda" lleva UV (0..1 sobre ese rectángulo, visto
+## desde abajo) y tangentes; así las placas completas y las recortadas se ven idénticas.
+func _construir_malla_prisma(poligono: PackedVector2Array, alto: float, celda: Rect2 = Rect2()) -> ArrayMesh:
 	var vertices := PackedVector3Array()
 	var normales := PackedVector3Array()
 	var indices := Geometry2D.triangulate_polygon(poligono)
@@ -247,11 +226,62 @@ func _crear_prisma_poligonal(nombre: String, poligono: PackedVector2Array, centr
 	arrays.resize(Mesh.ARRAY_MAX)
 	arrays[Mesh.ARRAY_VERTEX] = vertices
 	arrays[Mesh.ARRAY_NORMAL] = normales
+	if celda.size.x > 0.0 and celda.size.y > 0.0:
+		var uvs := PackedVector2Array()
+		for indice_v in vertices.size():
+			var v := vertices[indice_v]
+			# Los cantos (caras laterales) usan un punto fijo: sin rayas estiradas.
+			if absf(normales[indice_v].y) < 0.5:
+				uvs.append(Vector2(0.5, 0.5))
+			else:
+				uvs.append(Vector2((v.x - celda.position.x) / celda.size.x, (v.z - celda.position.y) / celda.size.y))
+		arrays[Mesh.ARRAY_TEX_UV] = uvs
+		# Tangentes (hacen falta para el mapa de normales de las placas).
+		var tangentes := PackedFloat32Array()
+		for n in normales:
+			if n.y > 0.5:
+				tangentes.append_array([1.0, 0.0, 0.0, -1.0])
+			elif n.y < -0.5:
+				tangentes.append_array([1.0, 0.0, 0.0, 1.0])
+			else:
+				tangentes.append_array([n.z, 0.0, -n.x, 1.0])
+		arrays[Mesh.ARRAY_TANGENT] = tangentes
 	var malla := ArrayMesh.new()
 	malla.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arrays)
+	return malla
+
+
+## "celda" (opcional): rectángulo de la placa a la que pertenece la pieza. Con él se
+## calculan UV para que la textura de placa quede en su posición, como en las completas.
+func _crear_prisma_poligonal(nombre: String, poligono: PackedVector2Array, centro_y: float, alto: float, colision: bool, sombra: bool, celda: Rect2 = Rect2(), semilla_material: int = 0) -> void:
+	if poligono.size() < 3:
+		return
+	var contenedor: Node3D
+	if colision:
+		var cuerpo := StaticBody3D.new()
+		cuerpo.name = nombre
+		cuerpo.position.y = centro_y
+		var forma := ConvexPolygonShape3D.new()
+		var puntos_3d := PackedVector3Array()
+		for punto in poligono:
+			puntos_3d.append(Vector3(punto.x, -alto * 0.5, punto.y))
+		for punto in poligono:
+			puntos_3d.append(Vector3(punto.x, alto * 0.5, punto.y))
+		forma.points = puntos_3d
+		var colision_fisica := CollisionShape3D.new()
+		colision_fisica.shape = forma
+		cuerpo.add_child(colision_fisica)
+		add_child(cuerpo)
+		contenedor = cuerpo
+	else:
+		contenedor = Node3D.new()
+		contenedor.name = nombre
+		contenedor.position.y = centro_y
+		add_child(contenedor)
+	var malla := _construir_malla_prisma(poligono, alto, celda)
 	var visual := MeshInstance3D.new()
 	visual.mesh = malla
-	MaterialesAmbiente.aplicar(visual, _tipo_material_superficie(nombre))
+	MaterialesAmbiente.aplicar(visual, _tipo_material_superficie(nombre), semilla_material)
 	visual.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON if sombra else GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	contenedor.add_child(visual)
 
@@ -332,21 +362,21 @@ func _crear_columna_fija(nombre: String, base: Vector2, huella_columna: Vector2)
 	add_child(columna)
 
 func _buscar_posicion_columna_sin_luz(base: Vector2, usadas: Array[Vector3], tamanos_usados: Array[Vector2], tamano_columna: Vector2) -> Vector2:
-	var tam_tile := 1.5
+	var tam_tile: float = RejillaTechoScript.TAMANO
 	var limites_grilla := GeometriaHuella.limites(_huella())
-	var cantidad_x := maxi(1, ceili(limites_grilla.size.x / tam_tile))
-	var cantidad_z := maxi(1, ceili(limites_grilla.size.y / tam_tile))
-	var origen_grilla := limites_grilla.position + (limites_grilla.size - Vector2(cantidad_x, cantidad_z) * tam_tile) * 0.5
-	var fase_x := 1
-	var fase_z := 1
+	var rejilla := RejillaTechoScript.calcular(limites_grilla, Vector2(global_position.x, global_position.z), Vector2(global_basis.x.x, global_basis.x.z), Vector2(global_basis.z.x, global_basis.z.z))
+	var cantidad_x: int = rejilla.columnas
+	var cantidad_z: int = rejilla.filas
+	var origen_grilla: Vector2 = rejilla.origen
 	var mejor := base
 	var mejor_distancia := INF
 	for x in cantidad_x:
 		for z in cantidad_z:
-			var es_posicion_luz := posmod(x - fase_x, 3) == 0 and posmod(z - fase_z, 3) == 0
+			var candidata := origen_grilla + Vector2((x + 0.5) * tam_tile, (z + 0.5) * tam_tile)
+			var mundo_candidata := to_global(Vector3(candidata.x, 0.0, candidata.y))
+			var es_posicion_luz := posmod(RejillaTechoScript.indice_mundo(mundo_candidata.x) - 1, 3) == 0 and posmod(RejillaTechoScript.indice_mundo(mundo_candidata.z) - 1, 3) == 0
 			if es_posicion_luz:
 				continue
-			var candidata := origen_grilla + Vector2((x + 0.5) * tam_tile, (z + 0.5) * tam_tile)
 			if candidata.x < tamano_columna.x * 0.5 or candidata.y < tamano_columna.y * 0.5:
 				continue
 			if candidata.x > ancho_m - tamano_columna.x * 0.5 or candidata.y > largo_m - tamano_columna.y * 0.5:
@@ -396,12 +426,13 @@ func _cerca_de_puerta(punto: Vector2, radio_columna: float = 0.65) -> bool:
 func _crear_techo_modular() -> void:
 	var rng := RandomNumberGenerator.new()
 	rng.seed = semilla_ambiente
-	var tam_tile := 1.5
+	var tam_tile: float = RejillaTechoScript.TAMANO
 	var limites := GeometriaHuella.limites(_huella())
-	var columnas_tiles := maxi(1, ceili(limites.size.x / tam_tile))
-	var filas_tiles := maxi(1, ceili(limites.size.y / tam_tile))
-	var origen_x := limites.position.x + (limites.size.x - columnas_tiles * tam_tile) * 0.5
-	var origen_z := limites.position.y + (limites.size.y - filas_tiles * tam_tile) * 0.5
+	var rejilla := RejillaTechoScript.calcular(limites, Vector2(global_position.x, global_position.z), Vector2(global_basis.x.x, global_basis.x.z), Vector2(global_basis.z.x, global_basis.z.z))
+	var columnas_tiles: int = rejilla.columnas
+	var filas_tiles: int = rejilla.filas
+	var origen_x: float = rejilla.origen.x
+	var origen_z: float = rejilla.origen.y
 	# Tapa estructural sobre una cámara técnica de 1,9 m de altura libre.
 	_crear_superficie_poligonal("Plenum superior", _huella(), zonas_techo_excluidas, alto_m + ALTURA_CAMARA_TECNICA + 0.1, 0.2)
 	ServiciosTecho.crear(self, _huella(), alto_m, zonas_techo_excluidas)
@@ -426,15 +457,14 @@ func _crear_techo_modular() -> void:
 			piezas = _sin_astillas(piezas)
 			# Las luces siguen un ritmo de paneles de oficina, con variaciones por sala.
 			# Esto evita el patrón de puntos aleatorios demasiado denso.
-			var fase_x := 1
-			var fase_z := 1
-			var es_posicion_luz := posmod(x - fase_x, 3) == 0 and posmod(z - fase_z, 3) == 0
 			var posicion_global_luz := to_global(Vector3(centro.x, alto_m, centro.z))
+			# Las luces siguen la rejilla del mundo (una de cada 3 placas), igual en todas las salas.
+			var es_posicion_luz := posmod(RejillaTechoScript.indice_mundo(posicion_global_luz.x) - 1, 3) == 0 and posmod(RejillaTechoScript.indice_mundo(posicion_global_luz.z) - 1, 3) == 0
 			var id_luz := "X %.2f · Z %.2f" % [posicion_global_luz.x, posicion_global_luz.z]
 			var modo_forzado := int(modos_luces_mapa.get(id_luz, -999))
 			var es_luz_manual := luces_manuales_mapa.has(id_luz)
-			if valor < 0.065 and modo_forzado == -999 and not es_luz_manual:
-				continue # Baldosa faltante si el editor no la fijó.
+			if es_luz_manual and modo_forzado == 5:
+				continue # Placa faltante: la fija el editor, nada es aleatorio.
 			var area_tile_conservada := 0.0
 			for pieza in piezas:
 				area_tile_conservada += absf(GeometriaHuella.area_firmada(pieza))
@@ -457,7 +487,8 @@ func _crear_techo_modular() -> void:
 					centro_visual = limites_pieza.get_center()
 					ancho_visual = limites_pieza.size.x
 					largo_visual = limites_pieza.size.y
-			var crear_luminaria := ((es_luz_manual and modo_forzado >= 0) or (luces_automaticas and not es_luz_manual and modo_forzado != -1 and es_posicion_luz and valor > 0.10)) and pieza_rectangular and (tile_completo or (es_luz_manual and modo_forzado >= 0))
+			var es_modo_luz := modo_forzado >= 0 and modo_forzado <= 2
+			var crear_luminaria := ((es_luz_manual and es_modo_luz) or (luces_automaticas and not es_luz_manual and modo_forzado != -1 and es_posicion_luz)) and pieza_rectangular and (tile_completo or (es_luz_manual and es_modo_luz))
 			if crear_luminaria:
 				var centro_panel := Vector3(centro_visual.x, alto_m + LuminariaScript.PLANO_ENCASTRE_Y + GROSOR_PLACA_TECHO * 0.5, centro_visual.y)
 				_crear_tile(centro_panel, ancho_visual, largo_visual, 0.0, 0.0, false)
@@ -467,22 +498,38 @@ func _crear_techo_modular() -> void:
 				luminaria_creada.set_meta("id_editor", id_luz)
 				if funciona:
 					luces_operativas += 1
+			elif es_luz_manual and modo_forzado == 3 and tile_rectangular_completo:
+				_crear_tile_rota(centro, ancho_tile, largo_tile, rng)
+			elif es_luz_manual and modo_forzado == 4 and tile_rectangular_completo:
+				_crear_tile(centro, ancho_tile, largo_tile, GROSOR_PLACA_TECHO + 0.03, rng.randf_range(-2.0, 2.0), true, rng.randf_range(9.0, 17.0) * (1.0 if rng.randf() < 0.5 else -1.0))
 			elif tile_rectangular_completo:
-				if not es_posicion_luz and valor > 0.93:
-					_crear_tile(centro, ancho_tile, largo_tile, DESFASE_PLACA_TECHO + rng.randf_range(0.015, 0.03), rng.randf_range(-INCLINACION_PLACA_SUELTA, INCLINACION_PLACA_SUELTA))
-				else:
-					_crear_tile(centro, ancho_tile, largo_tile, DESFASE_PLACA_TECHO)
+				_crear_tile(centro, ancho_tile, largo_tile, DESFASE_PLACA_TECHO)
 			else:
+				# Cada pieza se separa de las vecinas con el mismo margen que las placas
+				# completas y lleva UV de su placa, para que no se vea todo unido.
+				var margen := LuminariaScript.MARGEN_PLACA_RETICULA
+				var celda := Rect2(x0 + margen * 0.5, z0 + margen * 0.5, ancho_tile - margen, largo_tile - margen)
+				var recorte := GeometriaHuella.rectangulo(ancho_tile - LuminariaScript.MARGEN_PLACA_RETICULA, largo_tile - LuminariaScript.MARGEN_PLACA_RETICULA, Vector2(x0 + ancho_tile * 0.5, z0 + largo_tile * 0.5))
+				var semilla_placa := hash(Vector2i(roundi(centro.x * 10.0), roundi(centro.z * 10.0)))
 				for pieza in piezas:
-					_crear_prisma_poligonal("TileTecho", pieza, alto_m + LuminariaScript.PLANO_ENCASTRE_Y + GROSOR_PLACA_TECHO * 0.5 + DESFASE_PLACA_TECHO, GROSOR_PLACA_TECHO, true, false)
+					for parte in _sin_astillas(GeometriaHuella.intersecciones(recorte, pieza)):
+						_crear_prisma_poligonal("TileTecho", parte, alto_m + LuminariaScript.PLANO_ENCASTRE_Y + GROSOR_PLACA_TECHO * 0.5 + DESFASE_PLACA_TECHO, GROSOR_PLACA_TECHO, true, false, celda, semilla_placa)
 
 	LuminariaScript.crear_relleno(self, limites.get_center(), limites.size.length() * 0.5, alto_m, luces_operativas)
 
-func _crear_tile(centro: Vector3, ancho: float, largo: float, elevacion: float = 0.0, inclinacion: float = 0.0, mostrar_malla: bool = true) -> void:
+## Placa rota: queda una mitad colgando torcida de un borde y el resto del hueco vacío.
+func _crear_tile_rota(centro: Vector3, ancho: float, largo: float, rng: RandomNumberGenerator) -> void:
+	var mitad := largo * 0.5
+	var lado := -1.0 if rng.randf() < 0.5 else 1.0
+	var origen := Vector3(centro.x, centro.y, centro.z + lado * (largo * 0.5 - mitad * 0.5))
+	_crear_tile(origen + Vector3(0, -0.10, 0), ancho, mitad, 0.0, rng.randf_range(-6.0, 6.0), true, 0.0, rng.randf_range(14.0, 24.0) * -lado)
+
+
+func _crear_tile(centro: Vector3, ancho: float, largo: float, elevacion: float = 0.0, inclinacion: float = 0.0, mostrar_malla: bool = true, giro_y: float = 0.0, cabeceo: float = 0.0) -> void:
 	var cuerpo := StaticBody3D.new()
 	cuerpo.name = "TileTecho"
 	cuerpo.position = centro + Vector3(0, elevacion, 0)
-	cuerpo.rotation_degrees.z = inclinacion
+	cuerpo.rotation_degrees = Vector3(cabeceo, giro_y, inclinacion)
 	var tamano := Vector3(ancho - LuminariaScript.MARGEN_PLACA_RETICULA, GROSOR_PLACA_TECHO, largo - LuminariaScript.MARGEN_PLACA_RETICULA)
 	var forma := BoxShape3D.new()
 	forma.size = tamano
@@ -491,9 +538,11 @@ func _crear_tile(centro: Vector3, ancho: float, largo: float, elevacion: float =
 	cuerpo.add_child(colision)
 	if mostrar_malla:
 		var visual := MeshInstance3D.new()
-		var malla := BoxMesh.new()
-		malla.size = tamano
-		visual.mesh = malla
+		var mitad_x := tamano.x * 0.5
+		var mitad_z := tamano.z * 0.5
+		# Con centro explícito: sin él, rectangulo() arranca en (0, 0) y la placa quedaría corrida.
+		var base := GeometriaHuella.rectangulo(tamano.x, tamano.z, Vector2.ZERO)
+		visual.mesh = _construir_malla_prisma(base, tamano.y, Rect2(-mitad_x, -mitad_z, tamano.x, tamano.z))
 		MaterialesAmbiente.aplicar(visual, MaterialesAmbiente.PLACA_TECHO, hash(Vector2i(roundi(centro.x * 10.0), roundi(centro.z * 10.0))))
 		visual.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 		cuerpo.add_child(visual)

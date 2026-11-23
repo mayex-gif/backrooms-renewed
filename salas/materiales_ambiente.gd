@@ -15,16 +15,17 @@ const PLENUM := "plenum"
 
 const CARPETA := "res://assets/texturas/backrooms/"
 ## Metros que abarca una repetición de la textura de alfombra.
-const METROS_PARED := 1.0
+const METROS_PARED := 0.55
 const METROS_PISO := 1.3
 ## Multiplican el color de la textura. El piso es el mismo dibujo, más oscuro.
-const TINTE_PARED := Color(1.0, 1.0, 1.0)
+const TINTE_PARED := Color(0.86, 0.76, 0.50)
 const TINTE_PISO := Color(0.66, 0.56, 0.36)
 const BRILLO_PLACA := 1.0
 const VARIANTES_PLACA := 3
 
 ## Material de pared original del proyecto (alfombra en shader).
-const MATERIAL_PARED: Material = preload("res://assets/texturas/Carpet001/Carpet001_1K-JPG.tres")
+const MATERIAL_PISO_BASE: ShaderMaterial = preload("res://assets/texturas/Carpet001/Carpet001_1K-JPG.tres")
+const COLOR_PISO := Color(0.46, 0.37, 0.17)
 const MATERIAL_YESO: StandardMaterial3D = preload("res://assets/texturas/YesoPintado.tres")
 const MATERIAL_VIDRIO: StandardMaterial3D = preload("res://assets/texturas/VidrioVentana.tres")
 const MATERIAL_PLENUM: StandardMaterial3D = preload("res://assets/texturas/PlenumOscuro.tres")
@@ -36,13 +37,13 @@ static var _cache: Dictionary = {}
 static func aplicar(visual: MeshInstance3D, tipo: String, semilla: int = 0) -> void:
 	match tipo:
 		PARED:
-			visual.material_override = MATERIAL_PARED
+			visual.material_override = _alfombra("pared", METROS_PARED, TINTE_PARED)
 		PISO:
-			visual.material_override = _alfombra("piso", METROS_PISO, TINTE_PISO)
+			visual.material_override = _piso()
 		PLACA_TECHO:
 			visual.material_override = _placa(_variante(semilla))
 		PLACA_RECORTADA:
-			visual.material_override = _placa_recortada()
+			visual.material_override = _placa(_variante(semilla))
 		YESO:
 			visual.material_override = MATERIAL_YESO
 		VIDRIO:
@@ -85,7 +86,12 @@ static func _alfombra(clave: String, metros: float, tinte: Color) -> StandardMat
 		material.roughness_texture = rugosidad
 		material.roughness_texture_channel = BaseMaterial3D.TEXTURE_CHANNEL_RED
 	material.roughness = 1.0 if rugosidad != null else 0.92
-	material.metallic_specular = 0.2
+	material.metallic_specular = 0.1
+	# Pelo de la alfombra: relieve marcado y un poco de luz de borde.
+	material.normal_scale = 2.0
+	material.rim_enabled = true
+	material.rim = 0.35
+	material.rim_tint = 0.6
 	var escala := 1.0 / maxf(metros, 0.01)
 	material.uv1_triplanar = true
 	material.uv1_world_triplanar = true
@@ -110,6 +116,8 @@ static func _placa(variante: int) -> StandardMaterial3D:
 	if normal != null:
 		material.normal_enabled = true
 		material.normal_texture = normal
+		# Relieve suave: más fuerte da chispas brillantes bajo las luces fuertes.
+		material.normal_scale = 0.5
 	var rugosidad := _textura("techo_placa_rugosidad.jpg")
 	if rugosidad != null:
 		material.roughness_texture = rugosidad
@@ -119,11 +127,10 @@ static func _placa(variante: int) -> StandardMaterial3D:
 	return material
 
 
-static func _placa_recortada() -> StandardMaterial3D:
-	if _cache.has("placa_recortada"):
-		return _cache["placa_recortada"]
-	var material := StandardMaterial3D.new()
-	material.albedo_color = Color(0.84, 0.82, 0.76) * BRILLO_PLACA
-	material.roughness = 0.92
-	_cache["placa_recortada"] = material
+static func _piso() -> Material:
+	if _cache.has("piso"):
+		return _cache["piso"]
+	var material := MATERIAL_PISO_BASE.duplicate() as ShaderMaterial
+	material.set_shader_parameter("color", COLOR_PISO)
+	_cache["piso"] = material
 	return material
