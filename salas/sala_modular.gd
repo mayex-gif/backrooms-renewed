@@ -50,6 +50,10 @@ func _crear_faldon_plenum(huella: PackedVector2Array) -> void:
 		for socket in sockets:
 			if not _socket_en_arista(socket, arista):
 				continue
+			# Solo abrimos el faldón si la conexión comparte la misma altura de techo;
+			# si la otra sala es más baja o distinta, el plenum debe quedar sellado.
+			if socket.altura_abertura_m > 0.0 and not is_equal_approx(socket.altura_abertura_m, alto_m):
+				continue
 			var lateral := (Vector2(socket.posicion_local.x, socket.posicion_local.z) - inicio).dot(eje)
 			aberturas.append(Vector2(
 				clampf(lateral - socket.ancho * 0.5, 0.0, largo),
@@ -436,11 +440,18 @@ func _crear_techo_modular() -> void:
 	# Tapa estructural sobre una cámara técnica de 1,9 m de altura libre.
 	_crear_superficie_poligonal("Plenum superior", _huella(), zonas_techo_excluidas, alto_m + ALTURA_CAMARA_TECNICA + 0.1, 0.2)
 	ServiciosTecho.crear(self, _huella(), alto_m, zonas_techo_excluidas)
+	var portales_abiertos := _obtener_portales_techo_abiertos()
 	for x in range(columnas_tiles + 1):
 		var px := origen_x + x * tam_tile
+		# Evitar vigas que caigan sobre o dentro de las paredes perimetrales.
+		if px <= limites.position.x + 0.06 or (px >= limites.end.x - 0.06 and not _arista_tiene_abertura_abierta(1)):
+			continue
 		_crear_viga_techo(GeometriaHuella.rectangulo(0.07, limites.size.y, Vector2(px, limites.get_center().y)), alto_m + LuminariaScript.PLANO_ENCASTRE_Y + GROSOR_VIGA_TECHO * 0.5)
 	for z in range(filas_tiles + 1):
 		var pz := origen_z + z * tam_tile
+		# Evitar vigas que caigan sobre o dentro de las paredes perimetrales.
+		if pz <= limites.position.y + 0.06 or (pz >= limites.end.y - 0.06 and not _arista_tiene_abertura_abierta(2)):
+			continue
 		_crear_viga_techo(GeometriaHuella.rectangulo(limites.size.x, 0.07, Vector2(limites.get_center().x, pz)), alto_m + LuminariaScript.PLANO_ENCASTRE_Y + GROSOR_VIGA_TECHO * 0.5)
 	var luces_operativas := 0
 	for x in columnas_tiles:
@@ -449,12 +460,31 @@ func _crear_techo_modular() -> void:
 			var z0 := origen_z + z * tam_tile
 			var ancho_tile := tam_tile
 			var largo_tile := tam_tile
-			var rect_tile := GeometriaHuella.rectangulo(ancho_tile, largo_tile, Vector2(x0 + ancho_tile * 0.5, z0 + largo_tile * 0.5))
-			var centro := Vector3(x0 + ancho_tile * 0.5, alto_m + LuminariaScript.PLANO_ENCASTRE_Y + GROSOR_PLACA_TECHO * 0.5, z0 + largo_tile * 0.5)
+			var centro_2d := Vector2(x0 + ancho_tile * 0.5, z0 + largo_tile * 0.5)
+			var rect_tile := GeometriaHuella.rectangulo(ancho_tile, largo_tile, centro_2d)
+			var centro := Vector3(centro_2d.x, alto_m + LuminariaScript.PLANO_ENCASTRE_Y + GROSOR_PLACA_TECHO * 0.5, centro_2d.y)
+			var centro_dentro := GeometriaHuella.contiene(_huella(), centro_2d)
+			var cruza_solo_aberturas := _tile_cruza_solo_aberturas(rect_tile, portales_abiertos)
+
+			var piezas: Array[PackedVector2Array] = []
+			if not centro_dentro:
+				if cruza_solo_aberturas:
+					continue # Lo construye la sala vecina que contiene el centro como tile completo.
+				piezas = GeometriaHuella.intersecciones(rect_tile, _huella())
+			else:
+				if cruza_solo_aberturas:
+					piezas = [rect_tile]
+				else:
+					piezas = GeometriaHuella.intersecciones(rect_tile, _huella())
+
 			var valor := rng.randf()
-			var piezas := GeometriaHuella.intersecciones(rect_tile, _huella())
 			piezas = GeometriaHuella.restar_a_poligonos(piezas, zonas_techo_excluidas)
 			piezas = _sin_astillas(piezas)
+			var area_tile_conservada := 0.0
+			for pieza in piezas:
+				area_tile_conservada += absf(GeometriaHuella.area_firmada(pieza))
+			var tile_completo := absf(area_tile_conservada - ancho_tile * largo_tile) <= 0.01
+
 			# Las luces siguen un ritmo de paneles de oficina, con variaciones por sala.
 			# Esto evita el patrón de puntos aleatorios demasiado denso.
 			var posicion_global_luz := to_global(Vector3(centro.x, alto_m, centro.z))
@@ -465,10 +495,6 @@ func _crear_techo_modular() -> void:
 			var es_luz_manual := luces_manuales_mapa.has(id_luz)
 			if es_luz_manual and modo_forzado == 5:
 				continue # Placa faltante: la fija el editor, nada es aleatorio.
-			var area_tile_conservada := 0.0
-			for pieza in piezas:
-				area_tile_conservada += absf(GeometriaHuella.area_firmada(pieza))
-			var tile_completo := absf(area_tile_conservada - ancho_tile * largo_tile) <= 0.01
 			var tile_rectangular_completo := (
 				absf(area_tile_conservada - ancho_tile * largo_tile) <= 0.001
 				and piezas.size() == 1
@@ -517,12 +543,67 @@ func _crear_techo_modular() -> void:
 
 	LuminariaScript.crear_relleno(self, limites.get_center(), limites.size.length() * 0.5, alto_m, luces_operativas)
 
-## Placa rota: queda una mitad colgando torcida de un borde y el resto del hueco vacío.
+## Portales exteriores de aberturas abiertas (sin pared) hacia salas vecinas.
+## Permiten que los tiles que cruzan la abertura no se recorten en seco.
+func _obtener_portales_techo_abiertos() -> Array[PackedVector2Array]:
+	var portales: Array[PackedVector2Array] = []
+	var huella := _huella()
+	for socket in sockets:
+		var es_abierto: bool = bool(socket.continuar_sala) or bool(socket.sin_dintel) or (float(socket.altura_abertura_m) > 0.0 and is_equal_approx(float(socket.altura_abertura_m), alto_m))
+		if not es_abierto or int(socket.arista) < 0 or int(socket.arista) >= huella.size():
+			continue
+		var inicio: Vector2 = huella[int(socket.arista)]
+		var fin: Vector2 = huella[(int(socket.arista) + 1) % huella.size()]
+		var eje: Vector2 = (fin - inicio).normalized()
+		var normal_ext := Vector2(eje.y, -eje.x)
+		var p1 := inicio
+		var p2 := fin
+		if not bool(socket.continuar_sala) and float(socket.ancho) > 0.0:
+			var pos_s := Vector2(socket.posicion_local.x, socket.posicion_local.z)
+			var centro_s: float = (pos_s - inicio).dot(eje)
+			p1 = inicio + eje * maxf(0.0, centro_s - float(socket.ancho) * 0.5 - 0.05)
+			p2 = inicio + eje * minf(inicio.distance_to(fin), centro_s + float(socket.ancho) * 0.5 + 0.05)
+		var p3 := p2 + normal_ext * 1.6
+		var p4 := p1 + normal_ext * 1.6
+		portales.append(PackedVector2Array([p1, p2, p3, p4]))
+	return portales
+
+## Comprueba si las partes que sobresalen de la huella caen exclusivamente en portales de aberturas abiertas.
+func _tile_cruza_solo_aberturas(rect_tile: PackedVector2Array, portales_abiertos: Array[PackedVector2Array]) -> bool:
+	if portales_abiertos.is_empty():
+		return false
+	var piezas_fuera := GeometriaHuella.restar_a_poligonos([rect_tile], [_huella()])
+	if piezas_fuera.is_empty():
+		return true
+	var remanente := GeometriaHuella.restar_a_poligonos(piezas_fuera, portales_abiertos)
+	var area_rem := 0.0
+	for poly in remanente:
+		area_rem += absf(GeometriaHuella.area_firmada(poly))
+	return area_rem <= 0.01
+
+func _arista_tiene_abertura_abierta(arista: int) -> bool:
+	var huella := _huella()
+	if arista < 0 or arista >= huella.size():
+		return false
+	for socket in sockets:
+		if not _socket_en_arista(socket, arista):
+			continue
+		var es_abierto: bool = bool(socket.continuar_sala) or bool(socket.sin_dintel) or (float(socket.altura_abertura_m) > 0.0 and is_equal_approx(float(socket.altura_abertura_m), alto_m))
+		if es_abierto:
+			return true
+	return false
+
+## Placa rota / levantada: queda desplazada e inclinada hacia el plenum,
+## con una parte apoyada sobre la retícula dentro del techo.
 func _crear_tile_rota(centro: Vector3, ancho: float, largo: float, rng: RandomNumberGenerator) -> void:
-	var mitad := largo * 0.5
-	var lado := -1.0 if rng.randf() < 0.5 else 1.0
-	var origen := Vector3(centro.x, centro.y, centro.z + lado * (largo * 0.5 - mitad * 0.5))
-	_crear_tile(origen + Vector3(0, -0.10, 0), ancho, mitad, 0.0, rng.randf_range(-6.0, 6.0), true, 0.0, rng.randf_range(14.0, 24.0) * -lado)
+	var lado_x := -1.0 if rng.randf() < 0.5 else 1.0
+	var lado_z := -1.0 if rng.randf() < 0.5 else 1.0
+	var elevacion := GROSOR_PLACA_TECHO + rng.randf_range(0.04, 0.08)
+	var cabeceo := rng.randf_range(12.0, 18.0) * lado_z
+	var inclinacion := rng.randf_range(8.0, 14.0) * lado_x
+	var giro_y := rng.randf_range(-12.0, 12.0)
+	var desplazamiento := Vector3(lado_x * 0.08, elevacion, lado_z * 0.08)
+	_crear_tile(centro + desplazamiento, ancho, largo, 0.0, inclinacion, true, giro_y, cabeceo)
 
 
 func _crear_tile(centro: Vector3, ancho: float, largo: float, elevacion: float = 0.0, inclinacion: float = 0.0, mostrar_malla: bool = true, giro_y: float = 0.0, cabeceo: float = 0.0) -> void:

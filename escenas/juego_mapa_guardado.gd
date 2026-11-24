@@ -157,7 +157,9 @@ func _agregar_puertas_pareadas(conexion: Dictionary, definiciones: Array[SalaDef
 	sa.rotacion_pared = _rotacion_arista(definiciones[a], sa.arista)
 	sa.ancho = ancho
 	sa.continuar_sala = completa
-	sa.sin_dintel = conexion.sin_dintel
+	sa.sin_dintel = conexion.sin_dintel and is_equal_approx(definiciones[a].alto_m, definiciones[b].alto_m)
+	if sa.sin_dintel:
+		sa.altura_abertura_m = definiciones[a].alto_m
 	sa.posicion_local = _punto_local(punto_a, origenes[a], giros[a])
 	var sb := SocketDef.new()
 	sb.direccion = [Direcciones.Dir.NORTE, Direcciones.Dir.ESTE, Direcciones.Dir.SUR, Direcciones.Dir.OESTE][posmod(int(conexion.get("lado_b", dir_b)), 4)]
@@ -165,7 +167,9 @@ func _agregar_puertas_pareadas(conexion: Dictionary, definiciones: Array[SalaDef
 	sb.rotacion_pared = _rotacion_arista(definiciones[b], sb.arista)
 	sb.ancho = ancho
 	sb.continuar_sala = completa
-	sb.sin_dintel = conexion.sin_dintel
+	sb.sin_dintel = conexion.sin_dintel and is_equal_approx(definiciones[a].alto_m, definiciones[b].alto_m)
+	if sb.sin_dintel:
+		sb.altura_abertura_m = definiciones[b].alto_m
 	sb.posicion_local = _punto_local(punto_b, origenes[b], giros[b])
 	sockets[a].append(sa)
 	sockets[b].append(sb)
@@ -227,16 +231,22 @@ func _agregar_hueco_interseccion(segmento: Dictionary, definiciones: Array[SalaD
 		socket.ancho = minf(ConexionesMapaScript.PASO_MAXIMO, largo)
 	else:
 		socket.ancho = largo
+	var pares: Array = segmento.get("pares", [])
+	var techos_solapados: Array[float] = []
+	for otro_indice in pares:
+		techos_solapados.append(definiciones[int(otro_indice)].alto_m)
 	if estado == ConexionesMapaScript.ESTADO_INTERSECCION:
-		var pares: Array = segmento.get("pares", [])
 		if pares.is_empty():
 			socket.sin_dintel = true
 		else:
-			var techos_solapados: Array[float] = []
-			for otro_indice in pares:
-				techos_solapados.append(definiciones[int(otro_indice)].alto_m)
 			socket.altura_abertura_m = PlanificadorSolapesScript.altura_abertura_interseccion(definiciones[indice].alto_m, techos_solapados)
 			socket.sin_dintel = socket.altura_abertura_m >= definiciones[indice].alto_m - 0.001
+	elif estado == ConexionesMapaScript.ESTADO_ABIERTA:
+		if not techos_solapados.is_empty():
+			socket.altura_abertura_m = PlanificadorSolapesScript.altura_abertura_interseccion(definiciones[indice].alto_m, techos_solapados)
+		else:
+			socket.altura_abertura_m = definiciones[indice].alto_m
+		socket.sin_dintel = socket.altura_abertura_m >= definiciones[indice].alto_m - 0.001
 	else:
 		socket.sin_dintel = false
 	socket.posicion_local = _punto_local((inicio + fin) * 0.5, origenes[indice], giros[indice])

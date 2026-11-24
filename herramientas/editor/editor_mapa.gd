@@ -1302,6 +1302,108 @@ func _dibujar_leyenda() -> void:
 		_lienzo.draw_rect(Rect2(origen.x, y - 9, 16, 8), color_entrada)
 		_lienzo.draw_string(fuente, Vector2(origen.x + 24, y), String(entrada[0]), HORIZONTAL_ALIGNMENT_LEFT, -1, 12, Color(0.92, 0.92, 0.86))
 
+func _obtener_portales_techo_abiertos_editor(sala: Dictionary, definicion: SalaDef, angulo: float) -> Array[PackedVector2Array]:
+	var portales: Array[PackedVector2Array] = []
+	var huella := definicion.obtener_huella_local()
+	var limites := GeometriaHuella.limites(huella)
+	var centro_local := limites.get_center()
+	var modulos := _modulos_para_conexiones()
+	var id_sala := int(sala.id)
+	var indice_sala := -1
+	for idx in _salas.size():
+		if int(_salas[idx].id) == id_sala:
+			indice_sala = idx
+			break
+	if indice_sala < 0:
+		return portales
+
+	for conexion in ConexionesMapaScript.calcular(modulos, _estados_conexion):
+		if conexion.a != indice_sala and conexion.b != indice_sala:
+			continue
+		var id_vecina: int = conexion.b if conexion.a == indice_sala else conexion.a
+		var def_vecina := _catalogo[_indice_tipo(_salas[id_vecina].tipo)]
+		if not is_equal_approx(definicion.alto_m, def_vecina.alto_m):
+			continue
+		var es_abierta: bool = String(conexion.get("estado", "")) == ConexionesMapaScript.ESTADO_INTERSECCION or bool(conexion.get("sin_dintel", false))
+		if not es_abierta:
+			continue
+		var arista_idx: int = int(conexion.arista_a if conexion.a == indice_sala else conexion.arista_b)
+		if arista_idx < 0 or arista_idx >= huella.size():
+			continue
+		var inicio_arista := huella[arista_idx]
+		var fin_arista := huella[(arista_idx + 1) % huella.size()]
+		var eje := (fin_arista - inicio_arista).normalized()
+		var normal_ext := Vector2(eje.y, -eje.x)
+		var p1 := inicio_arista
+		var p2 := fin_arista
+		if not conexion.completa and float(conexion.ancho) > 0.0:
+			var punto_mundo: Vector2 = conexion.punto_a if conexion.a == indice_sala else conexion.punto_b
+			var punto_local := (punto_mundo - Vector2(sala.x, sala.z)).rotated(-angulo) + centro_local
+			var centro_s := (punto_local - inicio_arista).dot(eje)
+			var medio := float(conexion.ancho) * 0.5 + 0.05
+			p1 = inicio_arista + eje * maxf(0.0, centro_s - medio)
+			p2 = inicio_arista + eje * minf(inicio_arista.distance_to(fin_arista), centro_s + medio)
+		var p3 := p2 + normal_ext * 1.6
+		var p4 := p1 + normal_ext * 1.6
+		portales.append(PackedVector2Array([p1, p2, p3, p4]))
+
+	var plan_solapes: Dictionary = PlanificadorSolapesScript.calcular(modulos, _estados_solape)
+	for segmento in plan_solapes.segmentos:
+		if int(segmento.modulo) != indice_sala:
+			continue
+		if String(segmento.get("estado", "")) != ConexionesMapaScript.ESTADO_INTERSECCION:
+			continue
+		var arista_idx: int = int(segmento.arista)
+		if arista_idx < 0 or arista_idx >= huella.size():
+			continue
+		var inicio_arista: Vector2 = huella[arista_idx]
+		var fin_arista: Vector2 = huella[(arista_idx + 1) % huella.size()]
+		var eje: Vector2 = (fin_arista - inicio_arista).normalized()
+		var normal_ext := Vector2(eje.y, -eje.x)
+		var p1_loc: Vector2 = (Vector2(segmento.inicio.x, segmento.inicio.y) - Vector2(sala.x, sala.z)).rotated(-angulo) + centro_local
+		var p2_loc: Vector2 = (Vector2(segmento.fin.x, segmento.fin.y) - Vector2(sala.x, sala.z)).rotated(-angulo) + centro_local
+		var t1: float = (p1_loc - inicio_arista).dot(eje)
+		var t2: float = (p2_loc - inicio_arista).dot(eje)
+		var p1: Vector2 = inicio_arista + eje * maxf(0.0, minf(t1, t2) - 0.05)
+		var p2: Vector2 = inicio_arista + eje * minf(inicio_arista.distance_to(fin_arista), maxf(t1, t2) + 0.05)
+		var p3 := p2 + normal_ext * 1.6
+		var p4 := p1 + normal_ext * 1.6
+		portales.append(PackedVector2Array([p1, p2, p3, p4]))
+
+	for segmento in plan_solapes.ocultos:
+		if int(segmento.modulo) != indice_sala:
+			continue
+		var arista_idx: int = int(segmento.arista)
+		if arista_idx < 0 or arista_idx >= huella.size():
+			continue
+		var inicio_arista: Vector2 = huella[arista_idx]
+		var fin_arista: Vector2 = huella[(arista_idx + 1) % huella.size()]
+		var eje: Vector2 = (fin_arista - inicio_arista).normalized()
+		var normal_ext := Vector2(eje.y, -eje.x)
+		var p1_loc: Vector2 = (Vector2(segmento.inicio.x, segmento.inicio.y) - Vector2(sala.x, sala.z)).rotated(-angulo) + centro_local
+		var p2_loc: Vector2 = (Vector2(segmento.fin.x, segmento.fin.y) - Vector2(sala.x, sala.z)).rotated(-angulo) + centro_local
+		var t1: float = (p1_loc - inicio_arista).dot(eje)
+		var t2: float = (p2_loc - inicio_arista).dot(eje)
+		var p1: Vector2 = inicio_arista + eje * maxf(0.0, minf(t1, t2) - 0.05)
+		var p2: Vector2 = inicio_arista + eje * minf(inicio_arista.distance_to(fin_arista), maxf(t1, t2) + 0.05)
+		var p3 := p2 + normal_ext * 1.6
+		var p4 := p1 + normal_ext * 1.6
+		portales.append(PackedVector2Array([p1, p2, p3, p4]))
+
+	return portales
+
+func _tile_cruza_solo_aberturas_editor(rect_tile: PackedVector2Array, huella: PackedVector2Array, portales_abiertos: Array[PackedVector2Array]) -> bool:
+	if portales_abiertos.is_empty():
+		return false
+	var piezas_fuera := GeometriaHuella.restar_a_poligonos([rect_tile], [huella])
+	if piezas_fuera.is_empty():
+		return true
+	var remanente := GeometriaHuella.restar_a_poligonos(piezas_fuera, portales_abiertos)
+	var area_rem := 0.0
+	for poly in remanente:
+		area_rem += absf(GeometriaHuella.area_firmada(poly))
+	return area_rem <= 0.01
+
 func _dibujar_tiles_techo(sala: Dictionary, definicion: SalaDef, angulo: float, centro_lienzo: Vector2) -> void:
 	const TAM_TILE := 1.5
 	var huella := definicion.obtener_huella_local()
@@ -1313,15 +1415,29 @@ func _dibujar_tiles_techo(sala: Dictionary, definicion: SalaDef, angulo: float, 
 	var filas_tiles: int = rejilla.filas
 	var origen_x: float = rejilla.origen.x
 	var origen_z: float = rejilla.origen.y
+	var portales_abiertos := _obtener_portales_techo_abiertos_editor(sala, definicion, angulo)
 	for x in columnas_tiles:
 		for z in filas_tiles:
 			var x0 := origen_x + x * TAM_TILE
 			var z0 := origen_z + z * TAM_TILE
 			var ancho_tile := TAM_TILE
 			var largo_tile := TAM_TILE
-			var celda := GeometriaHuella.rectangulo(ancho_tile, largo_tile, Vector2(x0 + ancho_tile * 0.5, z0 + largo_tile * 0.5))
-			var piezas := GeometriaHuella.intersecciones(celda, huella)
 			var centro_local_tile := Vector2(x0 + ancho_tile * 0.5, z0 + largo_tile * 0.5)
+			var celda := GeometriaHuella.rectangulo(ancho_tile, largo_tile, centro_local_tile)
+			var centro_dentro := GeometriaHuella.contiene(huella, centro_local_tile)
+			var cruza_solo_aberturas := _tile_cruza_solo_aberturas_editor(celda, huella, portales_abiertos)
+
+			var piezas: Array[PackedVector2Array] = []
+			if not centro_dentro:
+				if cruza_solo_aberturas:
+					continue # Lo dibuja la sala vecina que contiene el centro como tile completo continuo.
+				piezas = GeometriaHuella.intersecciones(celda, huella)
+			else:
+				if cruza_solo_aberturas:
+					piezas = [celda]
+				else:
+					piezas = GeometriaHuella.intersecciones(celda, huella)
+
 			var centro_mundo := Vector2(sala.x, sala.z) + (centro_local_tile - centro_local).rotated(angulo)
 			var id_luz := _id_luminaria(centro_mundo)
 			var modo_luz := int(_modos_luces.get(id_luz, -1))
@@ -1436,17 +1552,26 @@ func _luz_techo_en(punto_mapa: Vector2) -> String:
 		var filas_tiles: int = rejilla.filas
 		var origen_x: float = rejilla.origen.x
 		var origen_z: float = rejilla.origen.y
+		var portales_abiertos := _obtener_portales_techo_abiertos_editor(sala, definicion, angulo)
 		for x in columnas_tiles:
 			for z in filas_tiles:
 				var x0 := origen_x + x * TAM_TILE
 				var z0 := origen_z + z * TAM_TILE
 				var ancho_tile := TAM_TILE
 				var largo_tile := TAM_TILE
-				var celda := GeometriaHuella.rectangulo(ancho_tile, largo_tile, Vector2(x0 + ancho_tile * 0.5, z0 + largo_tile * 0.5))
 				var centro_local_tile := Vector2(x0 + ancho_tile * 0.5, z0 + largo_tile * 0.5)
+				var celda := GeometriaHuella.rectangulo(ancho_tile, largo_tile, centro_local_tile)
+				var centro_dentro := GeometriaHuella.contiene(huella, centro_local_tile)
+				var cruza_solo_aberturas := _tile_cruza_solo_aberturas_editor(celda, huella, portales_abiertos)
+				if not centro_dentro and cruza_solo_aberturas:
+					continue
 				var centro_mundo := Vector2(sala.x, sala.z) + (centro_local_tile - centro_local).rotated(angulo)
 				var id := _id_luminaria(centro_mundo)
-				var piezas := GeometriaHuella.intersecciones(celda, huella)
+				var piezas: Array[PackedVector2Array] = []
+				if cruza_solo_aberturas and centro_dentro:
+					piezas = [celda]
+				else:
+					piezas = GeometriaHuella.intersecciones(celda, huella)
 				for pieza in piezas:
 					var poligono: Array[Vector2] = []
 					for punto in pieza:
